@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>スマート拡大鏡＆カレンダーログ</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Tesseract.js (OCR文字認識) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: #151d2f;
+      --accent: #38bdf8;
+      --accent-gold: #facc15;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --border-color: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 上部ヘッダー */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 50;
+    }
+
+    .app-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+    }
+
+    .header-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tab-btn {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      color: var(--text-sub);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .badge-count {
+      background: var(--accent-red);
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+
+    /* メインコンテンツ表示域 */
+    .view-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .view-panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+    }
+
+    .view-panel.active {
+      display: flex;
+    }
+
+    /* --------------------------------------
+       1. 拡大鏡ビュー (Camera / Loupe)
+       -------------------------------------- */
+    .loupe-view {
+      position: relative;
+      background: #000;
+      justify-content: space-between;
+    }
+
+    .camera-viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #videoElement {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform-origin: center center;
+      transition: transform 0.05s ease-out, filter 0.2s ease;
+    }
+
+    #freezeCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+      z-index: 10;
+    }
+
+    /* 照準・レティクル (画面中央) */
+    .reticle {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border: 1.5px dashed rgba(250, 204, 21, 0.4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 15;
+    }
+    .reticle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      background: rgba(250, 204, 21, 0.7);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* 拡大倍率オーバーレイ表示 */
+    .zoom-overlay-tag {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid var(--accent-gold);
+      color: var(--accent-gold);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      z-index: 20;
+      backdrop-filter: blur(4px);
+    }
+
+    .freeze-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: var(--accent-red);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      display: none;
+      z-index: 20;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* 拡大鏡の下部コントロールバー */
+    .loupe-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(to top, rgba(9, 13, 22, 0.96) 60%, rgba(9, 13, 22, 0.7) 90%, transparent);
+      padding: 12px 16px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ズームスライダー行 */
+    .zoom-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(30, 41, 59, 0.8);
+      padding: 8px 14px;
+      border-radius: 30px;
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(6px);
+    }
+
+    .slider-icon {
+      color: var(--accent-gold);
+      font-size: 0.9rem;
+    }
+
+    .zoom-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #475569;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .zoom-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(250, 204, 21, 0.8);
+    }
+
+    .preset-zooms {
+      display: flex;
+      gap: 4px;
+    }
+
+    .preset-btn {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 7px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .preset-btn.active {
+      background: var(--accent-gold);
+      color: #0f172a;
+      border-color: var(--accent-gold);
+    }
+
+    /* ツールボタン行（フラッシュ、フリーズ、高コントラストフィルター、シャッター） */
+    .action-buttons-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+    }
+
+    .sub-action-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sub-action-btn.active {
+      background: var(--accent-gold);
+      color: #0f172a;
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 14px rgba(250, 204, 21, 0.5);
+    }
+
+    .sub-btn-label {
+      font-size: 0.55rem;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    /* メインシャッター（撮影ボタン） */
+    .shutter-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: white;
+      border: 4px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f172a;
+      font-size: 1.6rem;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+
+    .shutter-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+    }
+
+    /* --------------------------------------
+       2. カレンダーログ画面 (Calendar Log)
+       -------------------------------------- */
+    .calendar-log-view, .gallery-view {
+      overflow-y: auto;
+      padding: 16px;
+      padding-bottom: 90px;
+      background: var(--bg-dark);
+      flex: 1;
+    }
+
+    .section-title-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .log-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .log-card.status-registered {
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+
+    .log-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .log-thumb {
+      width: 70px;
+      height: 70px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .log-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .log-date-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(250, 204, 21, 0.15);
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      color: var(--accent-gold);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
+
+    .log-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+
+    .log-memo {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .log-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-top: 1px solid rgba(51, 65, 85, 0.5);
+      padding-top: 10px;
+    }
+
+    .cal-add-btn {
+      flex: 1;
+      min-width: 130px;
+      background: #1e3a8a;
+      border: 1px solid #3b82f6;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .cal-add-btn:active {
+      background: #1d4ed8;
+    }
+
+    .cal-ics-btn {
+      flex: 1;
+      min-width: 130px;
+      background: #134e4a;
+      border: 1px solid #14b8a6;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .cal-ics-btn:active {
+      background: #0f766e;
+    }
+
+    .log-sub-actions {
+      display: flex;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .card-icon-btn {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      color: var(--text-sub);
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .card-icon-btn.delete {
+      color: var(--accent-red);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-sub);
+    }
+    .empty-icon {
+      font-size: 3rem;
+      color: #334155;
+      margin-bottom: 12px;
+    }
+
+    /* --------------------------------------
+       3. 撮影後モーダル / メモ・OCR編集
+       -------------------------------------- */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 100;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-sheet {
+      background: var(--card-bg);
+      border-top: 2px solid var(--accent);
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: slideUp 0.25s ease-out;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sheet-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sheet-close {
+      background: #1e293b;
+      border: none;
+      color: var(--text-sub);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .sheet-body {
+      overflow-y: auto;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .captured-preview-box {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      max-height: 180px;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border-color);
+    }
+
+    #capturedImagePreview {
+      max-width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+    }
+
+    /* OCR解析バー */
+    .ocr-trigger-box {
+      background: #1e293b;
+      border: 1.5px dashed var(--accent-gold);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .ocr-text-desc {
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      line-height: 1.3;
+    }
+
+    .ocr-run-btn {
+      background: var(--accent-gold);
+      color: #0f172a;
+      border: none;
+      font-weight: bold;
+      font-size: 0.85rem;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      box-shadow: 0 0 10px rgba(250, 204, 21, 0.4);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .form-input, .form-textarea {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      user-select: text;
+    }
+
+    .form-input:focus, .form-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .datetime-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 10px;
+    }
+
+    .detected-badge-tag {
+      font-size: 0.72rem;
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: #4ade80;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: normal;
+    }
+
+    /* モーダル下部保存ボタン群 */
+    .sheet-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-save-log {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: 1px solid var(--accent);
+      color: white;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 12px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
+    }
+
+    .quick-cal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* 通知トースト */
+    .toast {
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s;
+      z-index: 200;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* 写真全画面プレビューモーダル */
+    .image-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      z-index: 150;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .image-modal.active {
+      display: flex;
+    }
+    .image-modal img {
+      max-width: 100%;
+      max-height: 90vh;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+    .image-modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 1.8rem;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 上部アプリヘッダー -->
+  <header class="app-header">
+    <div class="app-title">
+      <i class="fa-solid fa-magnifying-glass-plus"></i>
+      <span>スマート拡大鏡</span>
+    </div>
+    <div class="header-tabs">
+      <button class="tab-btn active" id="tabLoupe" onclick="switchTab('loupe')">
+        <i class="fa-solid fa-camera"></i> 拡大鏡
+      </button>
+      <button class="tab-btn" id="tabCalendarLog" onclick="switchTab('calendarLog')">
+        <i class="fa-regular fa-calendar-check"></i> カレンダーログ
+        <span class="badge-count" id="logBadge">0</span>
+      </button>
+      <button class="tab-btn" id="tabGallery" onclick="switchTab('gallery')">
+        <i class="fa-regular fa-images"></i> 写真メモ
+      </button>
+    </div>
+  </header>
+
+  <!-- メインビュー領域 -->
+  <main class="view-container">
+
+    <!-- 1. 拡大鏡ビュー -->
+    <div class="view-panel loupe-view active" id="viewLoupe">
+      <div class="camera-viewport" id="viewport">
+        <video id="videoElement" autoplay playsinline muted></video>
+        <canvas id="freezeCanvas"></canvas>
+        <div class="reticle"></div>
+        <div class="zoom-overlay-tag" id="zoomBadge">1.0x</div>
+        <div class="freeze-badge" id="freezeBadge"><i class="fa-solid fa-pause"></i> 静止中</div>
+      </div>
+
+      <!-- 下部コントロールパネル -->
+      <div class="loupe-controls">
+        <!-- ズームスライダー行 -->
+        <div class="zoom-slider-row">
+          <i class="fa-solid fa-magnifying-glass-minus slider-icon"></i>
+          <input type="range" class="zoom-slider" id="zoomSlider" min="1" max="10" step="0.1" value="1">
+          <i class="fa-solid fa-magnifying-glass-plus slider-icon"></i>
+          <div class="preset-zooms">
+            <button class="preset-btn active" onclick="setZoom(1)">1x</button>
+            <button class="preset-btn" onclick="setZoom(2)">2x</button>
+            <button class="preset-btn" onclick="setZoom(4)">4x</button>
+            <button class="preset-btn" onclick="setZoom(8)">8x</button>
+          </div>
+        </div>
+
+        <!-- ツールボタン行 -->
+        <div class="action-buttons-row">
+          <!-- ライト (トーチ) -->
+          <button class="sub-action-btn" id="btnTorch" onclick="toggleTorch()">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span class="sub-btn-label">ライト</span>
+          </button>
+
+          <!-- 静止・フリーズ -->
+          <button class="sub-action-btn" id="btnFreeze" onclick="toggleFreeze()">
+            <i class="fa-solid fa-snowflake"></i>
+            <span class="sub-btn-label">静止</span>
+          </button>
+
+          <!-- メイン撮影ボタン -->
+          <button class="shutter-btn" id="btnShutter" onclick="captureAndOpenSheet()">
+            <i class="fa-solid fa-camera"></i>
+          </button>
+
+          <!-- フィルター（白黒/反転） -->
+          <button class="sub-action-btn" id="btnFilter" onclick="cycleFilter()">
+            <i class="fa-solid fa-circle-half-stroke"></i>
+            <span class="sub-btn-label" id="filterLabel">標準</span>
+          </button>
+
+          <!-- ファイルから読込 (フォールバック用) -->
+          <button class="sub-action-btn" onclick="document.getElementById('fileInput').click()">
+            <i class="fa-solid fa-folder-open"></i>
+            <span class="sub-btn-label">画像開く</span>
+          </button>
+          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. カレンダーログ画面（最重要要望！） -->
+    <div class="view-panel calendar-log-view" id="viewCalendarLog">
+      <div class="section-title-bar">
+        <div class="section-title">
+          <i class="fa-solid fa-calendar-days"></i>
+          <span>カレンダー登録ログ一覧</span>
+        </div>
+        <button class="preset-btn" onclick="showHelpModal()">
+          <i class="fa-solid fa-circle-question"></i> 登録方法
+        </button>
+      </div>
+      <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:14px;">
+        撮影した写真から検出された日付・予定の一覧です。ここからいつでもワンタップでGoogleカレンダーやスマホ本体カレンダーに登録できます。
+      </p>
+
+      <div class="log-list" id="calendarLogList">
+        <!-- 動的生成 -->
+      </div>
+    </div>
+
+    <!-- 3. 写真メモギャラリー画面 -->
+    <div class="view-panel gallery-view" id="viewGallery">
+      <div class="section-title-bar">
+        <div class="section-title">
+          <i class="fa-solid fa-box-archive"></i>
+          <span>撮影写真メモ一覧</span>
+        </div>
+      </div>
+      <div class="log-list" id="galleryList">
+        <!-- 動的生成 -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 撮影後・メモ＆カレンダー登録モーダルシート -->
+  <div class="modal-backdrop" id="editSheet">
+    <div class="modal-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>撮影メモとカレンダー設定</span>
+        </div>
+        <button class="sheet-close" onclick="closeEditSheet()">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <!-- 撮影画像プレビュー -->
+        <div class="captured-preview-box">
+          <img id="capturedImagePreview" src="" alt="撮影画像">
+        </div>
+
+        <!-- OCR文字・日時スキャンボタン -->
+        <div class="ocr-trigger-box">
+          <div class="ocr-text-desc">
+            <strong style="color:var(--accent-gold);">AI文字＆日時スキャン</strong><br>
+            写真内の日付・時刻・文字を自動認識します
+          </div>
+          <button class="ocr-run-btn" id="btnRunOcr" onclick="runOcrScan()">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> スキャン実行
+          </button>
+        </div>
+
+        <!-- 入力フォーム -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fa-solid fa-heading"></i> タイトル
+          </label>
+          <input type="text" class="form-input" id="editTitle" placeholder="予定名やメモタイトル (例: 通院、薬の受取)">
+        </div>
+
+        <div class="datetime-row">
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fa-regular fa-calendar"></i> 日付
+              <span class="detected-badge-tag" id="dateDetectedTag" style="display:none;">自動検出</span>
+            </label>
+            <input type="date" class="form-input" id="editDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fa-regular fa-clock"></i> 時間
+              <span class="detected-badge-tag" id="timeDetectedTag" style="display:none;">自動検出</span>
+            </label>
+            <input type="time" class="form-input" id="editTime">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fa-solid fa-note-sticky"></i> メモ本文 (OCR抽出テキスト)
+          </label>
+          <textarea class="form-textarea" id="editMemo" rows="3" placeholder="撮影した内容のメモや詳細"></textarea>
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        <!-- カレンダーログに保存 -->
+        <button class="btn-save-log" onclick="saveToCalendarLog(true)">
+          <i class="fa-solid fa-calendar-plus"></i> カレンダーログに保存
+        </button>
+
+        <div class="quick-cal-actions">
+          <button class="cal-add-btn" onclick="directRegisterGoogle()">
+            <i class="fa-brands fa-google"></i> Googleカレンダーへ
+          </button>
+          <button class="cal-ics-btn" onclick="directDownloadIcs()">
+            <i class="fa-solid fa-calendar"></i> スマホカレンダーへ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 写真全画面拡大モーダル -->
+  <div class="image-modal" id="imageModal" onclick="closeImageModal()">
+    <div class="image-modal-close">✕</div>
+    <img id="imageModalImg" src="" alt="拡大表示">
+  </div>
+
+  <!-- 通知トースト -->
+  <div class="toast" id="toast">
+    <i class="fa-solid fa-circle-check" style="color:var(--accent-green);"></i>
+    <span id="toastMsg">保存しました</span>
+  </div>
+
+  <script>
+    /* ========================================================
+       スマート拡大鏡＆カレンダーログ アプリケーション ロジック
+       ======================================================== */
+    let currentStream = null;
+    let videoTrack = null;
+    let currentZoom = 1.0;
+    let maxHardwareZoom = 1.0;
+    let isFrozen = false;
+    let isTorchOn = false;
+    let currentFilterIdx = 0;
+    const filterModes = [
+      { name: "標準", filter: "none" },
+      { name: "高コントラスト", filter: "contrast(180%) brightness(110%)" },
+      { name: "白黒反転", filter: "invert(100%) contrast(150%)" },
+      { name: "グレースケール", filter: "grayscale(100%) contrast(150%)" },
+      { name: "黄色文字(弱視配慮)", filter: "sepia(100%) hue-rotate(15deg) contrast(180%)" }
+    ];
+
+    let capturedDataUrl = null;
+    let db = null;
+
+    // 1. IndexedDBの初期化 (写真・カレンダーログの端末内永続保存)
+    const DB_NAME = "SmartLoupeDB";
+    const DB_VERSION = 1;
+
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("logs")) {
+            const store = d.createObjectStore("logs", { keyPath: "id", autoIncrement: true });
+            store.createIndex("date", "date", { unique: false });
+            store.createIndex("createdAt", "createdAt", { unique: false });
+          }
+        };
+        req.onsuccess = (e) => {
+          db = e.target.result;
+          resolve(db);
+        };
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    // 2. カメラ起動・管理
+    async function startCamera() {
+      const video = document.getElementById("videoElement");
+      try {
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+        videoTrack = stream.getVideoTracks()[0];
+
+        // ハードウェアズームの対応チェック
+        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (capabilities.zoom) {
+          maxHardwareZoom = capabilities.zoom.max || 1.0;
+          document.getElementById("zoomSlider").max = Math.max(10, maxHardwareZoom);
+        }
+      } catch (err) {
+        console.warn("カメラ起動エラー (HTTPSまたは権限が必要です):", err);
+        showToast("カメラの起動が制限されています。画像開くボタンをご利用いただけます。");
+      }
+    }
+
+    // 3. ズーム制御 (ハードウェアズーム + CSSデジタルズーム)
+    function applyZoom(val) {
+      currentZoom = parseFloat(val);
+      document.getElementById("zoomBadge").innerText = `${currentZoom.toFixed(1)}x`;
+      document.getElementById("zoomSlider").value = currentZoom;
+
+      // プリセットボタンのactive更新
+      document.querySelectorAll(".preset-btn").forEach(btn => {
+        const p = parseFloat(btn.innerText);
+        btn.classList.toggle("active", Math.abs(p - currentZoom) < 0.2);
+      });
+
+      // ハードウェアズーム優先
+      if (videoTrack && videoTrack.applyConstraints) {
+        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (capabilities.zoom) {
+          const hwVal = Math.min(currentZoom, capabilities.zoom.max || 1.0);
+          videoTrack.applyConstraints({ advanced: [{ zoom: hwVal }] }).catch(() => {});
+          // 残りはCSSで拡大
+          const cssZoom = currentZoom / hwVal;
+          document.getElementById("videoElement").style.transform = `scale(${cssZoom})`;
+          return;
+        }
+      }
+      // CSSズーム
+      document.getElementById("videoElement").style.transform = `scale(${currentZoom})`;
+    }
+
+    function setZoom(val) {
+      applyZoom(val);
+    }
+
+    document.getElementById("zoomSlider").addEventListener("input", (e) => {
+      applyZoom(e.target.value);
+    });
+
+    // 4. ピンチイン・ピンチアウト操作対応
+    let touchStartDist = 0;
+    let initialZoomOnTouch = 1.0;
+    const viewport = document.getElementById("viewport");
+    viewport.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        touchStartDist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        initialZoomOnTouch = currentZoom;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2 && touchStartDist > 0) {
+        const dist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        const factor = dist / touchStartDist;
+        let newZoom = Math.min(10, Math.max(1, initialZoomOnTouch * factor));
+        applyZoom(newZoom);
+      }
+    }, { passive: true });
+
+    // 5. フラッシュライト (トーチ)
+    async function toggleTorch() {
+      if (!videoTrack || !videoTrack.applyConstraints) {
+        showToast("この端末ではライト制御に対応していません");
+        return;
+      }
+      try {
+        isTorchOn = !isTorchOn;
+        await videoTrack.applyConstraints({ advanced: [{ torch: isTorchOn }] });
+        document.getElementById("btnTorch").classList.toggle("active", isTorchOn);
+        showToast(isTorchOn ? "ライト点灯" : "ライト消灯");
+      } catch (e) {
+        showToast("ライトの点灯に対応していません");
+      }
+    }
+
+    // 6. 静止 (フリーズ) 機能
+    function toggleFreeze() {
+      const video = document.getElementById("videoElement");
+      const canvas = document.getElementById("freezeCanvas");
+      const badge = document.getElementById("freezeBadge");
+      const btn = document.getElementById("btnFreeze");
+
+      if (!isFrozen) {
+        // 現在の映像をCanvasに描画して静止
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.style.transform = video.style.transform;
+        canvas.style.filter = video.style.filter;
+        canvas.style.display = "block";
+        video.style.visibility = "hidden";
+        isFrozen = true;
+        badge.style.display = "block";
+        btn.classList.add("active");
+        showToast("静止しました (手ブレなしで確認できます)");
+      } else {
+        canvas.style.display = "none";
+        video.style.visibility = "visible";
+        isFrozen = false;
+        badge.style.display = "none";
+        btn.classList.remove("active");
+      }
+    }
+
+    // 7. フィルター切替 (白黒、反転、弱視配慮)
+    function cycleFilter() {
+      currentFilterIdx = (currentFilterIdx + 1) % filterModes.length;
+      const mode = filterModes[currentFilterIdx];
+      const video = document.getElementById("videoElement");
+      const canvas = document.getElementById("freezeCanvas");
+      video.style.filter = mode.filter;
+      canvas.style.filter = mode.filter;
+      document.getElementById("filterLabel").innerText = mode.name;
+      document.getElementById("btnFilter").classList.toggle("active", currentFilterIdx !== 0);
+      showToast(`フィルター: ${mode.name}`);
+    }
+
+    // 8. 撮影・画像取得
+    function captureCurrentFrame() {
+      const video = document.getElementById("videoElement");
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+
+      if (isFrozen) {
+        const freezeCanvas = document.getElementById("freezeCanvas");
+        ctx.drawImage(freezeCanvas, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+      return canvas.toDataURL("image/jpeg", 0.9);
+    }
+
+    function captureAndOpenSheet() {
+      capturedDataUrl = captureCurrentFrame();
+      openEditSheet(capturedDataUrl);
+    }
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        capturedDataUrl = evt.target.result;
+        openEditSheet(capturedDataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 9. メモ・カレンダー登録シートを開く
+    function openEditSheet(imgUrl) {
+      document.getElementById("capturedImagePreview").src = imgUrl;
+      // フォームの初期化
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      document.getElementById("editTitle").value = "";
+      document.getElementById("editDate").value = todayStr;
+      document.getElementById("editTime").value = timeStr;
+      document.getElementById("editMemo").value = "";
+      document.getElementById("dateDetectedTag").style.display = "none";
+      document.getElementById("timeDetectedTag").style.display = "none";
+
+      document.getElementById("editSheet").classList.add("active");
+
+      // 自動でOCRを推奨実行
+      runOcrScan();
+    }
+
+    function closeEditSheet() {
+      document.getElementById("editSheet").classList.remove("active");
+    }
+
+    // 10. OCR文字認識 ＆ 日付・時間自動検出
+    async function runOcrScan() {
+      const btn = document.getElementById("btnRunOcr");
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 解析中...`;
+      btn.disabled = true;
+
+      try {
+        let text = "";
+        if (window.Tesseract) {
+          const result = await Tesseract.recognize(
+            capturedDataUrl,
+            'jpn+eng',
+            { logger: m => console.log(m) }
+          );
+          text = result.data.text || "";
+        }
+
+        if (text) {
+          document.getElementById("editMemo").value = text.trim();
+          extractDateTimeFromText(text);
+          showToast("文字と日時を認識しました！");
+        } else {
+          showToast("文字が検出されませんでした。直接入力できます。");
+        }
+      } catch (err) {
+        console.warn("OCR実行エラー:", err);
+        showToast("OCR解析がスキップされました。直接入力できます。");
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> スキャン実行`;
+        btn.disabled = false;
+      }
+    }
+
+    // 正規表現による日付・時間の高度な自動抽出
+    function extractDateTimeFromText(text) {
+      const now = new Date();
+      let detectedDate = null;
+      let detectedTime = null;
+
+      // 日付パターン: 2026年10月27日, 2026/10/27, 10月27日, 10/27, 令和8年10月27日
+      const ymdRegex = /(?:(\d{4}|令(?:和)?\s*(\d{1,2}))[年\/\.\-])?\s*(\d{1,2})[月\/\.\-](\d{1,2})日?/;
+      const matchYmd = text.match(ymdRegex);
+      if (matchYmd) {
+        let year = now.getFullYear();
+        if (matchYmd[1]) {
+          if (matchYmd[1].startsWith("令")) {
+            const rYear = parseInt(matchYmd[2] || "1", 10);
+            year = 2018 + rYear;
+          } else {
+            year = parseInt(matchYmd[1], 10);
+          }
+        }
+        const month = parseInt(matchYmd[3], 10);
+        const day = parseInt(matchYmd[4], 10);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          detectedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+
+      // 時間パターン: 14:30, 14時30分, 午後2時, 10:00
+      const timeRegex = /(?:(午前|午後)\s*)?(\d{1,2})[:時](\d{2})?(?:分)?/;
+      const matchTime = text.match(timeRegex);
+      if (matchTime) {
+        let hour = parseInt(matchTime[2], 10);
+        const minute = matchTime[3] ? parseInt(matchTime[3], 10) : 0;
+        const ampm = matchTime[1];
+        if (ampm === "午後" && hour < 12) hour += 12;
+        if (ampm === "午前" && hour === 12) hour = 0;
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          detectedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        }
+      }
+
+      // 反映
+      if (detectedDate) {
+        document.getElementById("editDate").value = detectedDate;
+        document.getElementById("dateDetectedTag").style.display = "inline";
+      }
+      if (detectedTime) {
+        document.getElementById("editTime").value = detectedTime;
+        document.getElementById("timeDetectedTag").style.display = "inline";
+      }
+
+      // タイトル自動提案（最初の1行）
+      const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 2);
+      if (lines.length > 0 && !document.getElementById("editTitle").value) {
+        document.getElementById("editTitle").value = lines[0].substring(0, 30);
+      }
+    }
+
+    // 11. カレンダーログへの保存 (最重要要望！)
+    async function saveToCalendarLog(closeModal = true) {
+      const title = document.getElementById("editTitle").value.trim() || "撮影メモ";
+      const date = document.getElementById("editDate").value;
+      const time = document.getElementById("editTime").value || "09:00";
+      const memo = document.getElementById("editMemo").value.trim();
+
+      const logItem = {
+        title: title,
+        date: date,
+        time: time,
+        memo: memo,
+        image: capturedDataUrl,
+        isRegistered: false,
+        createdAt: new Date().toISOString()
+      };
+
+      await addLogToDB(logItem);
+      showToast("カレンダーログに保存しました！");
+      if (closeModal) {
+        closeEditSheet();
+      }
+      loadLogs();
+      updateBadge();
+    }
+
+    function addLogToDB(item) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(["logs"], "readwrite");
+        const store = tx.objectStore("logs");
+        const req = store.add(item);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function getAllLogs() {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(["logs"], "readonly");
+        const store = tx.objectStore("logs");
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function deleteLogFromDB(id) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(["logs"], "readwrite");
+        const store = tx.objectStore("logs");
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function updateLogStatusInDB(id, isRegistered) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(["logs"], "readwrite");
+        const store = tx.objectStore("logs");
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const data = getReq.result;
+          if (data) {
+            data.isRegistered = isRegistered;
+            store.put(data);
+            resolve();
+          }
+        };
+        getReq.onerror = (e) => reject(e);
+      });
+    }
+
+    // 12. カレンダーログ一覧の描画
+    async function loadLogs() {
+      const logs = await getAllLogs();
+      // 日付の降順でソート
+      logs.sort((a, b) => (b.date + " " + b.time).localeCompare(a.date + " " + a.time));
+
+      const logContainer = document.getElementById("calendarLogList");
+      const galleryContainer = document.getElementById("galleryList");
+
+      if (logs.length === 0) {
+        logContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fa-regular fa-calendar-xmark empty-icon"></i>
+            <p>カレンダーログはまだありません</p>
+            <p style="font-size:0.8rem; margin-top:6px;">拡大鏡でチラシや予定表を撮影すると、自動でここに予定がリストアップされます。</p>
+          </div>
+        `;
+        galleryContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fa-regular fa-images empty-icon"></i>
+            <p>保存された写真メモはありません</p>
+          </div>
+        `;
+        return;
+      }
+
+      // カレンダーログ描画
+      logContainer.innerHTML = logs.map(item => `
+        <div class="log-card ${item.isRegistered ? 'status-registered' : ''}" id="logCard_${item.id}">
+          <div class="log-card-header">
+            <img src="${item.image}" class="log-thumb" onclick="openImageModal('${item.image}')" title="タップで写真拡大">
+            <div class="log-info">
+              <div class="log-date-badge">
+                <i class="fa-regular fa-calendar-check"></i> ${formatDisplayDate(item.date, item.time)}
+              </div>
+              <div class="log-title">${escapeHtml(item.title)}</div>
+              <div class="log-memo">${escapeHtml(item.memo || 'メモなし')}</div>
+            </div>
+          </div>
+          <div class="log-card-actions">
+            <!-- Googleカレンダーに登録 -->
+            <button class="cal-add-btn" onclick="registerToGoogleCalendar('${encodeURIComponent(JSON.stringify(item))}')">
+              <i class="fa-brands fa-google"></i> Googleカレンダーへ
+            </button>
+            <!-- スマホ本体カレンダー (.ics) -->
+            <button class="cal-ics-btn" onclick="downloadIcsFile('${encodeURIComponent(JSON.stringify(item))}')">
+              <i class="fa-solid fa-calendar"></i> スマホ本体へ (.ics)
+            </button>
+            <div class="log-sub-actions">
+              <!-- 登録済みチェック -->
+              <button class="card-icon-btn" onclick="toggleLogRegistered(${item.id}, ${!item.isRegistered})" title="登録済みにする">
+                <i class="fa-solid fa-check" style="${item.isRegistered ? 'color:var(--accent-green);font-weight:bold;' : ''}"></i>
+              </button>
+              <!-- 削除 -->
+              <button class="card-icon-btn delete" onclick="deleteLog(${item.id})" title="削除">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      // ギャラリー描画
+      galleryContainer.innerHTML = logs.map(item => `
+        <div class="log-card">
+          <div class="log-card-header">
+            <img src="${item.image}" class="log-thumb" style="width:90px;height:90px;" onclick="openImageModal('${item.image}')">
+            <div class="log-info">
+              <div class="log-title" style="font-size:1.05rem;">${escapeHtml(item.title)}</div>
+              <div style="font-size:0.8rem; color:var(--accent-gold); margin-bottom:4px;">
+                <i class="fa-regular fa-clock"></i> ${item.date} ${item.time}
+              </div>
+              <div class="log-memo" style="-webkit-line-clamp:3;">${escapeHtml(item.memo || 'メモなし')}</div>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <a href="${item.image}" download="loupe_memo_${item.date}.jpg" class="card-icon-btn" title="画像を保存">
+              <i class="fa-solid fa-download"></i>
+            </a>
+            <button class="card-icon-btn delete" onclick="deleteLog(${item.id})" title="削除">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function updateBadge() {
+      const logs = await getAllLogs();
+      const count = logs.filter(l => !l.isRegistered).length;
+      document.getElementById("logBadge").innerText = count;
+      document.getElementById("logBadge").style.display = count > 0 ? "inline" : "none";
+    }
+
+    async function toggleLogRegistered(id, isReg) {
+      await updateLogStatusInDB(id, isReg);
+      showToast(isReg ? "カレンダー登録済みにしました" : "未登録に戻しました");
+      loadLogs();
+      updateBadge();
+    }
+
+    async function deleteLog(id) {
+      if (!confirm("このログを削除しますか？")) return;
+      await deleteLogFromDB(id);
+      showToast("削除しました");
+      loadLogs();
+      updateBadge();
+    }
+
+    // 13. カレンダー転記機能 (GoogleカレンダーURL & .ics生成)
+    function registerToGoogleCalendar(encodedItem) {
+      const item = JSON.parse(decodeURIComponent(encodedItem));
+      const dtStart = formatGoogleDate(item.date, item.time);
+      const dtEnd = formatGoogleDate(item.date, getEndTime(item.time));
+
+      const title = encodeURIComponent(item.title);
+      const details = encodeURIComponent(`${item.memo}\n\n[スマート拡大鏡メモより転記]`);
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dtStart}/${dtEnd}&details=${details}`;
+
+      window.open(url, "_blank");
+      updateLogStatusInDB(item.id, true).then(() => {
+        loadLogs();
+        updateBadge();
+      });
+    }
+
+    function directRegisterGoogle() {
+      const title = encodeURIComponent(document.getElementById("editTitle").value.trim() || "撮影メモ");
+      const date = document.getElementById("editDate").value;
+      const time = document.getElementById("editTime").value || "09:00";
+      const memo = encodeURIComponent(document.getElementById("editMemo").value.trim() + "\n\n[スマート拡大鏡メモより転記]");
+
+      const dtStart = formatGoogleDate(date, time);
+      const dtEnd = formatGoogleDate(date, getEndTime(time));
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dtStart}/${dtEnd}&details=${memo}`;
+
+      saveToCalendarLog(false);
+      window.open(url, "_blank");
+      closeEditSheet();
+    }
+
+    // iPhone・Android標準カレンダー用の .ics ファイル生成＆ダウンロード
+    function downloadIcsFile(encodedItem) {
+      const item = JSON.parse(decodeURIComponent(encodedItem));
+      generateAndDownloadIcs(item.title, item.date, item.time, item.memo);
+      updateLogStatusInDB(item.id, true).then(() => {
+        loadLogs();
+        updateBadge();
+      });
+    }
+
+    function directDownloadIcs() {
+      const title = document.getElementById("editTitle").value.trim() || "撮影メモ";
+      const date = document.getElementById("editDate").value;
+      const time = document.getElementById("editTime").value || "09:00";
+      const memo = document.getElementById("editMemo").value.trim();
+
+      saveToCalendarLog(false);
+      generateAndDownloadIcs(title, date, time, memo);
+      closeEditSheet();
+    }
+
+    function generateAndDownloadIcs(title, dateStr, timeStr, memo) {
+      const startIso = formatIcsDate(dateStr, timeStr);
+      const endIso = formatIcsDate(dateStr, getEndTime(timeStr));
+      const nowIso = formatIcsDateNow();
+
+      const icsContent = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Smart Loupe App//JP",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:${Date.now()}@smartloupe.app`,
+        `DTSTAMP:${nowIso}`,
+        `DTSTART:${startIso}`,
+        `DTEND:${endIso}`,
+        `SUMMARY:${title}`,
+        `DESCRIPTION:${memo.replace(/\n/g, "\\n")}\\n\\n[スマート拡大鏡より転記]`,
+        "STATUS:CONFIRMED",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n");
+
+      const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `event_${dateStr.replace(/-/g, '')}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("カレンダーファイル(.ics)を出力しました。タップしてカレンダーに追加できます！");
+    }
+
+    // ヘルパー関数
+    function formatGoogleDate(dateStr, timeStr) {
+      const d = (dateStr || "").replace(/-/g, "");
+      const t = (timeStr || "09:00").replace(/:/g, "") + "00";
+      return `${d}T${t}`;
+    }
+
+    function formatIcsDate(dateStr, timeStr) {
+      const d = (dateStr || "").replace(/-/g, "");
+      const t = (timeStr || "09:00").replace(/:/g, "") + "00";
+      return `${d}T${t}`;
+    }
+
+    function formatIcsDateNow() {
+      const n = new Date();
+      return n.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    }
+
+    function getEndTime(timeStr) {
+      if (!timeStr) return "10:00";
+      const parts = timeStr.split(":");
+      let h = parseInt(parts[0], 10) + 1;
+      if (h > 23) h = 23;
+      return `${String(h).padStart(2, '0')}:${parts[1] || '00'}`;
+    }
+
+    function formatDisplayDate(dateStr, timeStr) {
+      if (!dateStr) return "日付未設定";
+      const parts = dateStr.split("-");
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      const days = ["日", "月", "火", "水", "木", "金", "土"];
+      const dayName = days[d.getDay()] || "";
+      return `${parts[0]}年${parseInt(parts[1], 10)}月${parseInt(parts[2], 10)}日(${dayName}) ${timeStr || ''}`;
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[m]);
+    }
+
+    // 14. タブ切替
+    function switchTab(tab) {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+
+      if (tab === 'loupe') {
+        document.getElementById("tabLoupe").classList.add("active");
+        document.getElementById("viewLoupe").classList.add("active");
+      } else if (tab === 'calendarLog') {
+        document.getElementById("tabCalendarLog").classList.add("active");
+        document.getElementById("viewCalendarLog").classList.add("active");
+        loadLogs();
+      } else if (tab === 'gallery') {
+        document.getElementById("tabGallery").classList.add("active");
+        document.getElementById("viewGallery").classList.add("active");
+        loadLogs();
+      }
+    }
+
+    // 15. 写真拡大モーダル
+    function openImageModal(src) {
+      document.getElementById("imageModalImg").src = src;
+      document.getElementById("imageModal").classList.add("active");
+    }
+
+    function closeImageModal() {
+      document.getElementById("imageModal").classList.remove("active");
+    }
+
+    // 16. トースト表示
+    let toastTimer = null;
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      document.getElementById("toastMsg").innerText = msg;
+      t.classList.add("show");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+    }
+
+    function showHelpModal() {
+      alert("【カレンダーログの使い方】\n\n1. 「拡大鏡」でチラシや書類、予定表の日付部分を大きく写してシャッターを押します。\n2. 「AI文字＆日時スキャン」を押すと、日付と時間が自動で読み取られ、カレンダーログに保存されます。\n3. 「カレンダーログ」タブからいつでも『Googleカレンダーへ』または『スマホ本体へ』を押してワンタップで予定に登録できます！");
+    }
+
+    // 17. アプリ起動
+    window.addEventListener("DOMContentLoaded", async () => {
+      await initDB();
+      await startCamera();
+      loadLogs();
+      updateBadge();
+
+      // PWA サービスワーカー登録
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.log('SW registration note:', err);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
