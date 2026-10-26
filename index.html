@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>スマート拡大鏡＆カレンダーログ</title>
+  <title>スマート拡大鏡＆辞書・カレンダーログ</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <meta name="theme-color" content="#0f172a">
@@ -19,6 +19,7 @@
       --accent: #38bdf8;
       --accent-gold: #facc15;
       --accent-green: #22c55e;
+      --accent-purple: #c084fc;
       --accent-red: #ef4444;
       --text-main: #f8fafc;
       --text-sub: #94a3b8;
@@ -49,54 +50,62 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 16px;
-      padding-top: max(10px, env(safe-area-inset-top));
-      background: rgba(15, 23, 42, 0.95);
+      padding: 8px 12px;
+      padding-top: max(8px, env(safe-area-inset-top));
+      background: rgba(15, 23, 42, 0.98);
       border-bottom: 1px solid var(--border-color);
       z-index: 50;
+      overflow-x: auto;
+      white-space: nowrap;
     }
 
     .app-title {
-      font-size: 1.15rem;
+      font-size: 1.05rem;
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       color: var(--accent-gold);
+      margin-right: 8px;
+      flex-shrink: 0;
     }
 
     .header-tabs {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .header-tabs::-webkit-scrollbar { display: none; }
 
     .tab-btn {
       background: #1e293b;
       border: 1px solid var(--border-color);
       color: var(--text-sub);
-      padding: 6px 12px;
+      padding: 5px 10px;
       border-radius: 20px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       cursor: pointer;
       transition: all 0.2s;
+      flex-shrink: 0;
     }
 
     .tab-btn.active {
       background: var(--accent);
       color: #0f172a;
       border-color: var(--accent);
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
     }
 
     .badge-count {
       background: var(--accent-red);
       color: white;
-      font-size: 0.7rem;
-      padding: 2px 6px;
+      font-size: 0.65rem;
+      padding: 1px 5px;
       border-radius: 10px;
       font-weight: bold;
     }
@@ -162,7 +171,7 @@
       z-index: 10;
     }
 
-    /* 照準・レティクル (画面中央) */
+    /* 照準 */
     .reticle {
       position: absolute;
       width: 60px;
@@ -184,17 +193,16 @@
       transform: translate(-50%, -50%);
     }
 
-    /* 拡大倍率オーバーレイ表示 */
     .zoom-overlay-tag {
       position: absolute;
-      top: 16px;
-      left: 16px;
+      top: 14px;
+      left: 14px;
       background: rgba(0, 0, 0, 0.75);
       border: 1px solid var(--accent-gold);
       color: var(--accent-gold);
-      padding: 4px 12px;
+      padding: 3px 10px;
       border-radius: 20px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: bold;
       z-index: 20;
       backdrop-filter: blur(4px);
@@ -202,13 +210,13 @@
 
     .freeze-badge {
       position: absolute;
-      top: 16px;
-      right: 16px;
+      top: 14px;
+      right: 14px;
       background: var(--accent-red);
       color: white;
-      padding: 4px 12px;
+      padding: 3px 10px;
       border-radius: 20px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: bold;
       display: none;
       z-index: 20;
@@ -227,22 +235,22 @@
       bottom: 0;
       left: 0;
       width: 100%;
-      background: linear-gradient(to top, rgba(9, 13, 22, 0.96) 60%, rgba(9, 13, 22, 0.7) 90%, transparent);
-      padding: 12px 16px;
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, rgba(9, 13, 22, 0.98) 60%, rgba(9, 13, 22, 0.75) 90%, transparent);
+      padding: 10px 14px;
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
       z-index: 30;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     /* ズームスライダー行 */
     .zoom-slider-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      background: rgba(30, 41, 59, 0.8);
-      padding: 8px 14px;
+      gap: 8px;
+      background: rgba(30, 41, 59, 0.85);
+      padding: 6px 12px;
       border-radius: 30px;
       border: 1px solid var(--border-color);
       backdrop-filter: blur(6px);
@@ -250,7 +258,7 @@
 
     .slider-icon {
       color: var(--accent-gold);
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
 
     .zoom-slider {
@@ -283,9 +291,9 @@
       background: #0f172a;
       border: 1px solid #475569;
       color: #cbd5e1;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
-      padding: 4px 7px;
+      padding: 3px 6px;
       border-radius: 12px;
       cursor: pointer;
     }
@@ -296,17 +304,17 @@
       border-color: var(--accent-gold);
     }
 
-    /* ツールボタン行（フラッシュ、フリーズ、高コントラストフィルター、シャッター） */
+    /* ツールボタン行 */
     .action-buttons-row {
       display: flex;
       align-items: center;
       justify-content: space-around;
-      padding: 0 8px;
+      padding: 0 4px;
     }
 
     .sub-action-btn {
-      width: 48px;
-      height: 48px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       background: rgba(30, 41, 59, 0.85);
       border: 1px solid var(--border-color);
@@ -315,7 +323,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 1.1rem;
+      font-size: 1rem;
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -324,19 +332,19 @@
       background: var(--accent-gold);
       color: #0f172a;
       border-color: var(--accent-gold);
-      box-shadow: 0 0 14px rgba(250, 204, 21, 0.5);
+      box-shadow: 0 0 12px rgba(250, 204, 21, 0.5);
     }
 
     .sub-btn-label {
-      font-size: 0.55rem;
+      font-size: 0.52rem;
       font-weight: 600;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     /* メインシャッター（撮影ボタン） */
     .shutter-btn {
-      width: 72px;
-      height: 72px;
+      width: 68px;
+      height: 68px;
       border-radius: 50%;
       background: white;
       border: 4px solid var(--accent);
@@ -344,23 +352,22 @@
       align-items: center;
       justify-content: center;
       color: #0f172a;
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       cursor: pointer;
       box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
-      transition: transform 0.1s, box-shadow 0.2s;
+      transition: transform 0.1s;
     }
 
     .shutter-btn:active {
       transform: scale(0.92);
-      box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
     }
 
     /* --------------------------------------
-       2. カレンダーログ画面 (Calendar Log)
+       2. カレンダーログ画面
        -------------------------------------- */
-    .calendar-log-view, .gallery-view {
+    .calendar-log-view, .gallery-view, .dictionary-view {
       overflow-y: auto;
-      padding: 16px;
+      padding: 14px;
       padding-bottom: 90px;
       background: var(--bg-dark);
       flex: 1;
@@ -370,34 +377,33 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .section-title {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: var(--accent-gold);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .log-list {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
     }
 
     .log-card {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 14px;
-      padding: 14px;
+      border-radius: 12px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-      position: relative;
     }
 
     .log-card.status-registered {
@@ -407,12 +413,12 @@
     .log-card-header {
       display: flex;
       align-items: flex-start;
-      gap: 12px;
+      gap: 10px;
     }
 
     .log-thumb {
-      width: 70px;
-      height: 70px;
+      width: 66px;
+      height: 66px;
       border-radius: 8px;
       object-fit: cover;
       background: #0f172a;
@@ -433,25 +439,25 @@
       background: rgba(250, 204, 21, 0.15);
       border: 1px solid rgba(250, 204, 21, 0.4);
       color: var(--accent-gold);
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 700;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 6px;
       margin-bottom: 4px;
     }
 
     .log-title {
-      font-size: 0.98rem;
+      font-size: 0.95rem;
       font-weight: 700;
       color: var(--text-main);
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       word-break: break-all;
     }
 
     .log-memo {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--text-sub);
-      line-height: 1.4;
+      line-height: 1.35;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -461,55 +467,48 @@
     .log-card-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
       border-top: 1px solid rgba(51, 65, 85, 0.5);
-      padding-top: 10px;
+      padding-top: 8px;
     }
 
     .cal-add-btn {
       flex: 1;
-      min-width: 130px;
+      min-width: 120px;
       background: #1e3a8a;
       border: 1px solid #3b82f6;
       color: white;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      padding: 7px 10px;
-      border-radius: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       cursor: pointer;
-      transition: background 0.2s;
-    }
-    .cal-add-btn:active {
-      background: #1d4ed8;
     }
 
     .cal-ics-btn {
       flex: 1;
-      min-width: 130px;
+      min-width: 120px;
       background: #134e4a;
       border: 1px solid #14b8a6;
       color: white;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      padding: 7px 10px;
-      border-radius: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       cursor: pointer;
-    }
-    .cal-ics-btn:active {
-      background: #0f766e;
     }
 
     .log-sub-actions {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       margin-left: auto;
     }
 
@@ -517,32 +516,160 @@
       background: #1e293b;
       border: 1px solid var(--border-color);
       color: var(--text-sub);
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       cursor: pointer;
     }
-    .card-icon-btn.delete {
-      color: var(--accent-red);
-    }
+    .card-icon-btn.delete { color: var(--accent-red); }
 
     .empty-state {
       text-align: center;
-      padding: 40px 20px;
+      padding: 36px 16px;
       color: var(--text-sub);
     }
     .empty-icon {
-      font-size: 3rem;
+      font-size: 2.8rem;
       color: #334155;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     /* --------------------------------------
-       3. 撮影後モーダル / メモ・OCR編集
+       3. 翻訳・漢字・言葉の意味 画面
+       -------------------------------------- */
+    .smart-tools-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tool-input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tool-input {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      user-select: text;
+    }
+
+    .tool-action-btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      padding: 10px 6px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tool-btn.translate {
+      background: #1e3a8a;
+      border-color: #3b82f6;
+      color: #93c5fd;
+    }
+    .tool-btn.kanji {
+      background: #701a75;
+      border-color: #c084fc;
+      color: #f5d0fe;
+    }
+    .tool-btn.meaning {
+      background: #14532d;
+      border-color: #22c55e;
+      color: #bbf7d0;
+    }
+
+    /* 知的解説結果カード */
+    .knowledge-result-card {
+      background: #0f172a;
+      border: 1.5px solid var(--accent);
+      border-radius: 12px;
+      padding: 14px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .result-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      padding: 3px 8px;
+      border-radius: 6px;
+      width: fit-content;
+    }
+
+    .result-badge.blue { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
+    .result-badge.purple { background: #581c87; color: #f5d0fe; border: 1px solid #c084fc; }
+    .result-badge.green { background: #14532d; color: #bbf7d0; border: 1px solid #22c55e; }
+
+    .result-main-text {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: white;
+      line-height: 1.4;
+      user-select: text;
+    }
+
+    .result-sub-text {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+      user-select: text;
+      background: rgba(30, 41, 59, 0.6);
+      padding: 10px;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent-gold);
+    }
+
+    .voice-read-btn {
+      background: #334155;
+      border: 1px solid #64748b;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+
+    /* --------------------------------------
+       4. 撮影後モーダル / メモ・カレンダー・知性ツール
        -------------------------------------- */
     .modal-backdrop {
       position: fixed;
@@ -585,17 +712,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 18px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border-color);
     }
 
     .sheet-title {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: var(--accent);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .sheet-close {
@@ -611,17 +738,17 @@
 
     .sheet-body {
       overflow-y: auto;
-      padding: 16px 18px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
     }
 
     .captured-preview-box {
       position: relative;
       border-radius: 10px;
       overflow: hidden;
-      max-height: 180px;
+      max-height: 150px;
       background: #000;
       display: flex;
       align-items: center;
@@ -631,52 +758,59 @@
 
     #capturedImagePreview {
       max-width: 100%;
-      max-height: 180px;
+      max-height: 150px;
       object-fit: contain;
     }
 
-    /* OCR解析バー */
-    .ocr-trigger-box {
-      background: #1e293b;
-      border: 1.5px dashed var(--accent-gold);
+    /* クイック知的ツール行（撮影画面内） */
+    .quick-intellect-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 8px;
       border-radius: 10px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      border: 1px solid var(--border-color);
     }
 
-    .ocr-text-desc {
-      font-size: 0.85rem;
-      color: #cbd5e1;
-      line-height: 1.3;
-    }
-
-    .ocr-run-btn {
-      background: var(--accent-gold);
-      color: #0f172a;
-      border: none;
-      font-weight: bold;
-      font-size: 0.85rem;
-      padding: 8px 14px;
-      border-radius: 8px;
+    .intellect-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 7px 4px;
+      border-radius: 6px;
       cursor: pointer;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-      box-shadow: 0 0 10px rgba(250, 204, 21, 0.4);
+      gap: 3px;
+    }
+    .intellect-btn.trans { border-color: #3b82f6; color: #93c5fd; }
+    .intellect-btn.kanji { border-color: #c084fc; color: #f5d0fe; }
+    .intellect-btn.dict { border-color: #22c55e; color: #bbf7d0; }
+
+    /* モーダル内知的解説ボックス */
+    .modal-intellect-result {
+      background: #090d16;
+      border: 1.5px solid var(--accent-gold);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.85rem;
+      color: #f8fafc;
+      display: none;
+      user-select: text;
     }
 
     .form-group {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
 
     .form-label {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: var(--text-sub);
       display: flex;
@@ -688,36 +822,31 @@
       background: #0f172a;
       border: 1px solid var(--border-color);
       color: white;
-      padding: 10px 12px;
+      padding: 9px 12px;
       border-radius: 8px;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       outline: none;
       user-select: text;
-    }
-
-    .form-input:focus, .form-textarea:focus {
-      border-color: var(--accent);
     }
 
     .datetime-row {
       display: grid;
       grid-template-columns: 1.4fr 1fr;
-      gap: 10px;
+      gap: 8px;
     }
 
     .detected-badge-tag {
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       background: rgba(34, 197, 94, 0.2);
       border: 1px solid rgba(34, 197, 94, 0.5);
       color: #4ade80;
-      padding: 2px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
-      font-weight: normal;
     }
 
     /* モーダル下部保存ボタン群 */
     .sheet-footer {
-      padding: 12px 18px;
+      padding: 10px 16px;
       border-top: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
@@ -728,36 +857,35 @@
       background: linear-gradient(135deg, #0284c7, #0369a1);
       border: 1px solid var(--accent);
       color: white;
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 700;
-      padding: 12px;
-      border-radius: 10px;
+      padding: 11px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
     }
 
     .quick-cal-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
     }
 
     /* 通知トースト */
     .toast {
       position: fixed;
-      top: 70px;
+      top: 60px;
       left: 50%;
       transform: translateX(-50%) translateY(-20px);
       background: rgba(15, 23, 42, 0.95);
       border: 1px solid var(--accent);
       color: white;
-      padding: 10px 20px;
+      padding: 9px 18px;
       border-radius: 30px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -773,7 +901,7 @@
       opacity: 1;
     }
 
-    /* 写真全画面プレビューモーダル */
+    /* 写真全画面拡大モーダル */
     .image-modal {
       position: fixed;
       top: 0;
@@ -787,9 +915,7 @@
       justify-content: center;
       padding: 16px;
     }
-    .image-modal.active {
-      display: flex;
-    }
+    .image-modal.active { display: flex; }
     .image-modal img {
       max-width: 100%;
       max-height: 90vh;
@@ -824,6 +950,9 @@
     <div class="header-tabs">
       <button class="tab-btn active" id="tabLoupe" onclick="switchTab('loupe')">
         <i class="fa-solid fa-camera"></i> 拡大鏡
+      </button>
+      <button class="tab-btn" id="tabDictionary" onclick="switchTab('dictionary')">
+        <i class="fa-solid fa-language"></i> 英語訳・漢字・意味
       </button>
       <button class="tab-btn" id="tabCalendarLog" onclick="switchTab('calendarLog')">
         <i class="fa-regular fa-calendar-check"></i> カレンダーログ
@@ -882,13 +1011,13 @@
             <i class="fa-solid fa-camera"></i>
           </button>
 
-          <!-- フィルター（白黒/反転） -->
+          <!-- フィルター（白黒/反転/弱視配慮） -->
           <button class="sub-action-btn" id="btnFilter" onclick="cycleFilter()">
             <i class="fa-solid fa-circle-half-stroke"></i>
             <span class="sub-btn-label" id="filterLabel">標準</span>
           </button>
 
-          <!-- ファイルから読込 (フォールバック用) -->
+          <!-- ファイルから読込 -->
           <button class="sub-action-btn" onclick="document.getElementById('fileInput').click()">
             <i class="fa-solid fa-folder-open"></i>
             <span class="sub-btn-label">画像開く</span>
@@ -898,7 +1027,64 @@
       </div>
     </div>
 
-    <!-- 2. カレンダーログ画面（最重要要望！） -->
+    <!-- 2. 英語訳・漢字の読み方・言葉の意味 専用画面 -->
+    <div class="view-panel dictionary-view" id="viewDictionary">
+      <div class="section-title-bar">
+        <div class="section-title">
+          <i class="fa-solid fa-book-open-reader"></i>
+          <span>英語を訳す・漢字の読み方・言葉の意味</span>
+        </div>
+      </div>
+      <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">
+        調べたい英語、漢字、言葉を入力するか、拡大鏡で撮影した文字から即座に調べることができます。
+      </p>
+
+      <div class="smart-tools-box">
+        <div class="tool-input-row">
+          <input type="text" class="tool-input" id="dictQueryInput" placeholder="英語、漢字、言葉を入力 (例: Caution, 躊躇, 忖度)">
+          <button class="card-icon-btn" onclick="clearDictInput()" style="height:42px;width:42px;" title="クリア">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="tool-action-btn-group">
+          <!-- 英語を訳す -->
+          <button class="tool-btn translate" onclick="executeTranslate(document.getElementById('dictQueryInput').value)">
+            <i class="fa-solid fa-globe"></i>
+            <span>英語を訳す</span>
+          </button>
+
+          <!-- 漢字の読み方 -->
+          <button class="tool-btn kanji" onclick="executeKanjiReading(document.getElementById('dictQueryInput').value)">
+            <i class="fa-solid fa-font"></i>
+            <span>漢字の読み方</span>
+          </button>
+
+          <!-- 言葉の意味 -->
+          <button class="tool-btn meaning" onclick="executeWordMeaning(document.getElementById('dictQueryInput').value)">
+            <i class="fa-solid fa-book"></i>
+            <span>言葉の意味</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 知的解説結果表示カード -->
+      <div class="knowledge-result-card" id="knowledgeResultCard">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="result-badge" id="resultTypeBadge">結果</div>
+          <button class="voice-read-btn" id="voiceReadBtn" onclick="readAloudCurrent()">
+            <i class="fa-solid fa-volume-high"></i> 音声で聴く
+          </button>
+        </div>
+        <div class="result-main-text" id="resultMainText"></div>
+        <div class="result-sub-text" id="resultSubText"></div>
+        <div id="externalLinksRow" style="display:flex; gap:8px; margin-top:4px;">
+          <!-- 外部辞書リンクが動的追加 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. カレンダーログ画面 -->
     <div class="view-panel calendar-log-view" id="viewCalendarLog">
       <div class="section-title-bar">
         <div class="section-title">
@@ -906,19 +1092,17 @@
           <span>カレンダー登録ログ一覧</span>
         </div>
         <button class="preset-btn" onclick="showHelpModal()">
-          <i class="fa-solid fa-circle-question"></i> 登録方法
+          <i class="fa-solid fa-circle-question"></i> 使い方
         </button>
       </div>
-      <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:14px;">
-        撮影した写真から検出された日付・予定の一覧です。ここからいつでもワンタップでGoogleカレンダーやスマホ本体カレンダーに登録できます。
+      <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">
+        撮影した写真から検出された日付・予定の一覧です。ここからワンタップでGoogleカレンダーやスマホ本体カレンダーに登録できます。
       </p>
 
-      <div class="log-list" id="calendarLogList">
-        <!-- 動的生成 -->
-      </div>
+      <div class="log-list" id="calendarLogList"></div>
     </div>
 
-    <!-- 3. 写真メモギャラリー画面 -->
+    <!-- 4. 写真メモギャラリー画面 -->
     <div class="view-panel gallery-view" id="viewGallery">
       <div class="section-title-bar">
         <div class="section-title">
@@ -926,20 +1110,18 @@
           <span>撮影写真メモ一覧</span>
         </div>
       </div>
-      <div class="log-list" id="galleryList">
-        <!-- 動的生成 -->
-      </div>
+      <div class="log-list" id="galleryList"></div>
     </div>
 
   </main>
 
-  <!-- 撮影後・メモ＆カレンダー登録モーダルシート -->
+  <!-- 撮影後・メモ＆知性ツール＆カレンダー登録モーダルシート -->
   <div class="modal-backdrop" id="editSheet">
     <div class="modal-sheet">
       <div class="sheet-header">
         <div class="sheet-title">
-          <i class="fa-solid fa-pen-to-square"></i>
-          <span>撮影メモとカレンダー設定</span>
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>撮影メモと知的アシスタント</span>
         </div>
         <button class="sheet-close" onclick="closeEditSheet()">✕</button>
       </div>
@@ -950,16 +1132,24 @@
           <img id="capturedImagePreview" src="" alt="撮影画像">
         </div>
 
-        <!-- OCR文字・日時スキャンボタン -->
-        <div class="ocr-trigger-box">
-          <div class="ocr-text-desc">
-            <strong style="color:var(--accent-gold);">AI文字＆日時スキャン</strong><br>
-            写真内の日付・時刻・文字を自動認識します
-          </div>
-          <button class="ocr-run-btn" id="btnRunOcr" onclick="runOcrScan()">
-            <i class="fa-solid fa-wand-magic-sparkles"></i> スキャン実行
+        <!-- レンズ撮影から直通の知的機能 3大ボタン！ -->
+        <div class="quick-intellect-bar">
+          <button class="intellect-btn trans" onclick="quickTranslateFromOcr()">
+            <i class="fa-solid fa-language"></i>
+            <span>英語を訳す</span>
+          </button>
+          <button class="intellect-btn kanji" onclick="quickKanjiFromOcr()">
+            <i class="fa-solid fa-font"></i>
+            <span>漢字の読み方</span>
+          </button>
+          <button class="intellect-btn dict" onclick="quickMeaningFromOcr()">
+            <i class="fa-solid fa-book"></i>
+            <span>言葉の意味</span>
           </button>
         </div>
+
+        <!-- 知的解説のクイック表示 -->
+        <div class="modal-intellect-result" id="modalIntellectResult"></div>
 
         <!-- 入力フォーム -->
         <div class="form-group">
@@ -987,10 +1177,15 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">
-            <i class="fa-solid fa-note-sticky"></i> メモ本文 (OCR抽出テキスト)
-          </label>
-          <textarea class="form-textarea" id="editMemo" rows="3" placeholder="撮影した内容のメモや詳細"></textarea>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label class="form-label">
+              <i class="fa-solid fa-note-sticky"></i> 読み取り文字 (OCR)・メモ本文
+            </label>
+            <button class="preset-btn" onclick="runOcrScan()" id="btnRunOcrModal" style="color:var(--accent-gold);">
+              <i class="fa-solid fa-arrows-rotate"></i> 再スキャン
+            </button>
+          </div>
+          <textarea class="form-textarea" id="editMemo" rows="3" placeholder="撮影した写真の文字やメモ"></textarea>
         </div>
       </div>
 
@@ -1005,7 +1200,7 @@
             <i class="fa-brands fa-google"></i> Googleカレンダーへ
           </button>
           <button class="cal-ics-btn" onclick="directDownloadIcs()">
-            <i class="fa-solid fa-calendar"></i> スマホカレンダーへ
+            <i class="fa-solid fa-calendar"></i> スマホ本体へ (.ics)
           </button>
         </div>
       </div>
@@ -1026,7 +1221,7 @@
 
   <script>
     /* ========================================================
-       スマート拡大鏡＆カレンダーログ アプリケーション ロジック
+       スマート拡大鏡＆辞書・カレンダーログ ロジック
        ======================================================== */
     let currentStream = null;
     let videoTrack = null;
@@ -1044,9 +1239,11 @@
     ];
 
     let capturedDataUrl = null;
+    let currentVoiceText = "";
+    let currentVoiceLang = "ja-JP";
     let db = null;
 
-    // 1. IndexedDBの初期化 (写真・カレンダーログの端末内永続保存)
+    // 1. IndexedDBの初期化
     const DB_NAME = "SmartLoupeDB";
     const DB_VERSION = 1;
 
@@ -1069,7 +1266,7 @@
       });
     }
 
-    // 2. カメラ起動・管理
+    // 2. カメラ起動
     async function startCamera() {
       const video = document.getElementById("videoElement");
       try {
@@ -1086,81 +1283,66 @@
         video.srcObject = stream;
         videoTrack = stream.getVideoTracks()[0];
 
-        // ハードウェアズームの対応チェック
         const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
         if (capabilities.zoom) {
           maxHardwareZoom = capabilities.zoom.max || 1.0;
           document.getElementById("zoomSlider").max = Math.max(10, maxHardwareZoom);
         }
       } catch (err) {
-        console.warn("カメラ起動エラー (HTTPSまたは権限が必要です):", err);
-        showToast("カメラの起動が制限されています。画像開くボタンをご利用いただけます。");
+        console.warn("カメラ起動注意:", err);
       }
     }
 
-    // 3. ズーム制御 (ハードウェアズーム + CSSデジタルズーム)
+    // 3. ズーム制御
     function applyZoom(val) {
       currentZoom = parseFloat(val);
       document.getElementById("zoomBadge").innerText = `${currentZoom.toFixed(1)}x`;
       document.getElementById("zoomSlider").value = currentZoom;
 
-      // プリセットボタンのactive更新
       document.querySelectorAll(".preset-btn").forEach(btn => {
         const p = parseFloat(btn.innerText);
         btn.classList.toggle("active", Math.abs(p - currentZoom) < 0.2);
       });
 
-      // ハードウェアズーム優先
       if (videoTrack && videoTrack.applyConstraints) {
         const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
         if (capabilities.zoom) {
           const hwVal = Math.min(currentZoom, capabilities.zoom.max || 1.0);
           videoTrack.applyConstraints({ advanced: [{ zoom: hwVal }] }).catch(() => {});
-          // 残りはCSSで拡大
           const cssZoom = currentZoom / hwVal;
           document.getElementById("videoElement").style.transform = `scale(${cssZoom})`;
           return;
         }
       }
-      // CSSズーム
       document.getElementById("videoElement").style.transform = `scale(${currentZoom})`;
     }
 
-    function setZoom(val) {
-      applyZoom(val);
-    }
+    function setZoom(val) { applyZoom(val); }
 
     document.getElementById("zoomSlider").addEventListener("input", (e) => {
       applyZoom(e.target.value);
     });
 
-    // 4. ピンチイン・ピンチアウト操作対応
+    // ピンチ操作
     let touchStartDist = 0;
     let initialZoomOnTouch = 1.0;
     const viewport = document.getElementById("viewport");
     viewport.addEventListener("touchstart", (e) => {
       if (e.touches.length === 2) {
-        touchStartDist = Math.hypot(
-          e.touches[0].pageX - e.touches[1].pageX,
-          e.touches[0].pageY - e.touches[1].pageY
-        );
+        touchStartDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
         initialZoomOnTouch = currentZoom;
       }
     }, { passive: true });
 
     viewport.addEventListener("touchmove", (e) => {
       if (e.touches.length === 2 && touchStartDist > 0) {
-        const dist = Math.hypot(
-          e.touches[0].pageX - e.touches[1].pageX,
-          e.touches[0].pageY - e.touches[1].pageY
-        );
+        const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
         const factor = dist / touchStartDist;
-        let newZoom = Math.min(10, Math.max(1, initialZoomOnTouch * factor));
-        applyZoom(newZoom);
+        applyZoom(Math.min(10, Math.max(1, initialZoomOnTouch * factor)));
       }
     }, { passive: true });
 
-    // 5. フラッシュライト (トーチ)
+    // ライト (トーチ)
     async function toggleTorch() {
       if (!videoTrack || !videoTrack.applyConstraints) {
         showToast("この端末ではライト制御に対応していません");
@@ -1176,7 +1358,7 @@
       }
     }
 
-    // 6. 静止 (フリーズ) 機能
+    // 静止 (フリーズ)
     function toggleFreeze() {
       const video = document.getElementById("videoElement");
       const canvas = document.getElementById("freezeCanvas");
@@ -1184,7 +1366,6 @@
       const btn = document.getElementById("btnFreeze");
 
       if (!isFrozen) {
-        // 現在の映像をCanvasに描画して静止
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
         const ctx = canvas.getContext("2d");
@@ -1206,7 +1387,7 @@
       }
     }
 
-    // 7. フィルター切替 (白黒、反転、弱視配慮)
+    // フィルター切替
     function cycleFilter() {
       currentFilterIdx = (currentFilterIdx + 1) % filterModes.length;
       const mode = filterModes[currentFilterIdx];
@@ -1219,7 +1400,7 @@
       showToast(`フィルター: ${mode.name}`);
     }
 
-    // 8. 撮影・画像取得
+    // 撮影
     function captureCurrentFrame() {
       const video = document.getElementById("videoElement");
       const canvas = document.createElement("canvas");
@@ -1252,10 +1433,8 @@
       reader.readAsDataURL(file);
     }
 
-    // 9. メモ・カレンダー登録シートを開く
     function openEditSheet(imgUrl) {
       document.getElementById("capturedImagePreview").src = imgUrl;
-      // フォームの初期化
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -1266,10 +1445,9 @@
       document.getElementById("editMemo").value = "";
       document.getElementById("dateDetectedTag").style.display = "none";
       document.getElementById("timeDetectedTag").style.display = "none";
+      document.getElementById("modalIntellectResult").style.display = "none";
 
       document.getElementById("editSheet").classList.add("active");
-
-      // 自動でOCRを推奨実行
       runOcrScan();
     }
 
@@ -1277,11 +1455,10 @@
       document.getElementById("editSheet").classList.remove("active");
     }
 
-    // 10. OCR文字認識 ＆ 日付・時間自動検出
+    // OCR文字認識 ＆ 日時自動抽出
     async function runOcrScan() {
-      const btn = document.getElementById("btnRunOcr");
+      const btn = document.getElementById("btnRunOcrModal");
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 解析中...`;
-      btn.disabled = true;
 
       try {
         let text = "";
@@ -1297,26 +1474,22 @@
         if (text) {
           document.getElementById("editMemo").value = text.trim();
           extractDateTimeFromText(text);
+          // 辞書タブの検索入力にも自動同期
+          document.getElementById("dictQueryInput").value = text.trim().substring(0, 50);
           showToast("文字と日時を認識しました！");
-        } else {
-          showToast("文字が検出されませんでした。直接入力できます。");
         }
       } catch (err) {
         console.warn("OCR実行エラー:", err);
-        showToast("OCR解析がスキップされました。直接入力できます。");
       } finally {
-        btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> スキャン実行`;
-        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> 再スキャン`;
       }
     }
 
-    // 正規表現による日付・時間の高度な自動抽出
     function extractDateTimeFromText(text) {
       const now = new Date();
       let detectedDate = null;
       let detectedTime = null;
 
-      // 日付パターン: 2026年10月27日, 2026/10/27, 10月27日, 10/27, 令和8年10月27日
       const ymdRegex = /(?:(\d{4}|令(?:和)?\s*(\d{1,2}))[年\/\.\-])?\s*(\d{1,2})[月\/\.\-](\d{1,2})日?/;
       const matchYmd = text.match(ymdRegex);
       if (matchYmd) {
@@ -1336,7 +1509,6 @@
         }
       }
 
-      // 時間パターン: 14:30, 14時30分, 午後2時, 10:00
       const timeRegex = /(?:(午前|午後)\s*)?(\d{1,2})[:時](\d{2})?(?:分)?/;
       const matchTime = text.match(timeRegex);
       if (matchTime) {
@@ -1350,7 +1522,6 @@
         }
       }
 
-      // 反映
       if (detectedDate) {
         document.getElementById("editDate").value = detectedDate;
         document.getElementById("dateDetectedTag").style.display = "inline";
@@ -1360,14 +1531,216 @@
         document.getElementById("timeDetectedTag").style.display = "inline";
       }
 
-      // タイトル自動提案（最初の1行）
       const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 2);
       if (lines.length > 0 && !document.getElementById("editTitle").value) {
         document.getElementById("editTitle").value = lines[0].substring(0, 30);
       }
     }
 
-    // 11. カレンダーログへの保存 (最重要要望！)
+    /* ========================================================
+       【重要】英語を訳す・漢字の読み方・言葉の意味 ロジック
+       ======================================================== */
+
+    // 1. 英語を訳す (英和翻訳)
+    async function executeTranslate(query) {
+      if (!query || !query.trim()) {
+        showToast("翻訳したい英語を入力または撮影してください");
+        return;
+      }
+      const q = query.trim();
+      showToast("翻訳中...");
+
+      try {
+        // MyMemory Translation API (無料・登録不要・CORS対応)
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|ja`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const translated = data.responseData ? data.responseData.translatedText : "翻訳を取得できませんでした";
+
+        displayKnowledgeResult(
+          "blue",
+          `<i class="fa-solid fa-globe"></i> 英語の日本語訳`,
+          `🇺🇸 原文: ${q}`,
+          `🇯🇵 日本語訳: <strong>${translated}</strong>`,
+          q,
+          "en-US",
+          [
+            { label: "Google翻訳で開く", url: `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(q)}&op=translate` },
+            { label: "Weblio英和辞典", url: `https://ejje.weblio.jp/content/${encodeURIComponent(q)}` }
+          ]
+        );
+      } catch (err) {
+        // フォールバック
+        displayKnowledgeResult(
+          "blue",
+          `<i class="fa-solid fa-globe"></i> 英語の日本語訳`,
+          `🇺🇸 原文: ${q}`,
+          `外部辞書で詳細な翻訳を確認できます。`,
+          q,
+          "en-US",
+          [
+            { label: "Google翻訳で開く", url: `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(q)}&op=translate` },
+            { label: "Weblio英和辞典", url: `https://ejje.weblio.jp/content/${encodeURIComponent(q)}` }
+          ]
+        );
+      }
+    }
+
+    // 2. 漢字の読み方を調べる
+    function executeKanjiReading(query) {
+      if (!query || !query.trim()) {
+        showToast("読み方を調べたい漢字を入力または撮影してください");
+        return;
+      }
+      const q = query.trim();
+      showToast("漢字の読み方を調べています...");
+
+      // 音声読み上げ準備
+      currentVoiceText = q;
+      currentVoiceLang = "ja-JP";
+
+      displayKnowledgeResult(
+        "purple",
+        `<i class="fa-solid fa-font"></i> 漢字の読み方`,
+        `🈩 漢字: ${q}`,
+        `「<strong>音声で聴く</strong>」ボタンを押すと、この漢字の正しい日本語の読み上げ音が流れます！<br>さらに詳細な部首・画数・音訓読みは以下の辞書でワンタップ確認できます。`,
+        q,
+        "ja-JP",
+        [
+          { label: "漢字ペディアで調べる", url: `https://www.kanjipedia.jp/search?k=${encodeURIComponent(q)}` },
+          { label: "コトバンクで読み方", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` },
+          { label: "Googleで読み方検索", url: `https://www.google.com/search?q=${encodeURIComponent(q + ' 読み方')}` }
+        ]
+      );
+      // 自動で音声発音
+      readAloudCurrent();
+    }
+
+    // 3. 言葉の意味を調べる (国語辞典・百科事典)
+    async function executeWordMeaning(query) {
+      if (!query || !query.trim()) {
+        showToast("意味を調べたい言葉を入力または撮影してください");
+        return;
+      }
+      const q = query.trim();
+      showToast("言葉の意味を検索中...");
+
+      try {
+        // Wikipedia 日本語要約API
+        const wikiUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&origin=*&titles=${encodeURIComponent(q)}`;
+        const res = await fetch(wikiUrl);
+        const data = await res.json();
+        const pages = data.query ? data.query.pages : {};
+        const page = Object.values(pages)[0];
+
+        let explanation = "";
+        if (page && page.extract) {
+          explanation = page.extract.substring(0, 220) + (page.extract.length > 220 ? "..." : "");
+        } else {
+          explanation = `『${q}』に関する解説を以下の辞書リンクよりワンタップで詳しくご覧いただけます。`;
+        }
+
+        displayKnowledgeResult(
+          "green",
+          `<i class="fa-solid fa-book"></i> 言葉の意味・解説`,
+          `📖 用語: ${q}`,
+          explanation,
+          q,
+          "ja-JP",
+          [
+            { label: "コトバンク国語辞典", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` },
+            { label: "goo辞書で調べる", url: `https://dictionary.goo.ne.jp/srch/jn/${encodeURIComponent(q)}/m0u/` },
+            { label: "Wikipediaで全文を読む", url: `https://ja.wikipedia.org/wiki/${encodeURIComponent(q)}` }
+          ]
+        );
+      } catch (e) {
+        displayKnowledgeResult(
+          "green",
+          `<i class="fa-solid fa-book"></i> 言葉の意味・解説`,
+          `📖 用語: ${q}`,
+          `『${q}』の意味を各種辞書で検索できます。`,
+          q,
+          "ja-JP",
+          [
+            { label: "コトバンク国語辞典", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` },
+            { label: "goo辞書で調べる", url: `https://dictionary.goo.ne.jp/srch/jn/${encodeURIComponent(q)}/m0u/` }
+          ]
+        );
+      }
+    }
+
+    // 知的結果の画面描画
+    function displayKnowledgeResult(badgeColor, badgeHtml, mainHtml, subHtml, voiceText, voiceLang, links) {
+      const card = document.getElementById("knowledgeResultCard");
+      const badge = document.getElementById("resultTypeBadge");
+      badge.className = `result-badge ${badgeColor}`;
+      badge.innerHTML = badgeHtml;
+
+      document.getElementById("resultMainText").innerHTML = mainHtml;
+      document.getElementById("resultSubText").innerHTML = subHtml;
+
+      currentVoiceText = voiceText;
+      currentVoiceLang = voiceLang;
+
+      const linksRow = document.getElementById("externalLinksRow");
+      linksRow.innerHTML = (links || []).map(l => `
+        <a href="${l.url}" target="_blank" style="font-size:0.75rem; color:#38bdf8; text-decoration:none; background:#1e293b; border:1px solid #334155; padding:5px 9px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> ${l.label}
+        </a>
+      `).join("");
+
+      card.style.display = "flex";
+    }
+
+    // 音声読み上げ (Web Speech API)
+    function readAloudCurrent() {
+      if (!('speechSynthesis' in window)) {
+        showToast("この端末は音声読み上げに対応していません");
+        return;
+      }
+      if (!currentVoiceText) return;
+
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(currentVoiceText);
+      u.lang = currentVoiceLang || "ja-JP";
+      u.rate = 0.95; // 聴き取りやすい少し落ち着いた速度
+      window.speechSynthesis.speak(u);
+      showToast("音声を再生しています🔊");
+    }
+
+    function clearDictInput() {
+      document.getElementById("dictQueryInput").value = "";
+      document.getElementById("knowledgeResultCard").style.display = "none";
+    }
+
+    // 撮影モーダル内からのクイック呼び出し
+    function quickTranslateFromOcr() {
+      const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
+      if (!text) { showToast("読み取り文字がありません"); return; }
+      executeTranslate(text.substring(0, 100));
+      switchTab('dictionary');
+      closeEditSheet();
+    }
+
+    function quickKanjiFromOcr() {
+      const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
+      if (!text) { showToast("読み取り文字がありません"); return; }
+      executeKanjiReading(text.substring(0, 30));
+      switchTab('dictionary');
+      closeEditSheet();
+    }
+
+    function quickMeaningFromOcr() {
+      const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
+      if (!text) { showToast("読み取り文字がありません"); return; }
+      executeWordMeaning(text.substring(0, 30));
+      switchTab('dictionary');
+      closeEditSheet();
+    }
+
+    /* ========================================================
+       カレンダーログ＆保存 ロジック
+       ======================================================== */
     async function saveToCalendarLog(closeModal = true) {
       const title = document.getElementById("editTitle").value.trim() || "撮影メモ";
       const date = document.getElementById("editDate").value;
@@ -1386,9 +1759,7 @@
 
       await addLogToDB(logItem);
       showToast("カレンダーログに保存しました！");
-      if (closeModal) {
-        closeEditSheet();
-      }
+      if (closeModal) closeEditSheet();
       loadLogs();
       updateBadge();
     }
@@ -1440,10 +1811,8 @@
       });
     }
 
-    // 12. カレンダーログ一覧の描画
     async function loadLogs() {
       const logs = await getAllLogs();
-      // 日付の降順でソート
       logs.sort((a, b) => (b.date + " " + b.time).localeCompare(a.date + " " + a.time));
 
       const logContainer = document.getElementById("calendarLogList");
@@ -1466,7 +1835,6 @@
         return;
       }
 
-      // カレンダーログ描画
       logContainer.innerHTML = logs.map(item => `
         <div class="log-card ${item.isRegistered ? 'status-registered' : ''}" id="logCard_${item.id}">
           <div class="log-card-header">
@@ -1480,20 +1848,16 @@
             </div>
           </div>
           <div class="log-card-actions">
-            <!-- Googleカレンダーに登録 -->
             <button class="cal-add-btn" onclick="registerToGoogleCalendar('${encodeURIComponent(JSON.stringify(item))}')">
               <i class="fa-brands fa-google"></i> Googleカレンダーへ
             </button>
-            <!-- スマホ本体カレンダー (.ics) -->
             <button class="cal-ics-btn" onclick="downloadIcsFile('${encodeURIComponent(JSON.stringify(item))}')">
               <i class="fa-solid fa-calendar"></i> スマホ本体へ (.ics)
             </button>
             <div class="log-sub-actions">
-              <!-- 登録済みチェック -->
               <button class="card-icon-btn" onclick="toggleLogRegistered(${item.id}, ${!item.isRegistered})" title="登録済みにする">
                 <i class="fa-solid fa-check" style="${item.isRegistered ? 'color:var(--accent-green);font-weight:bold;' : ''}"></i>
               </button>
-              <!-- 削除 -->
               <button class="card-icon-btn delete" onclick="deleteLog(${item.id})" title="削除">
                 <i class="fa-solid fa-trash"></i>
               </button>
@@ -1502,13 +1866,12 @@
         </div>
       `).join("");
 
-      // ギャラリー描画
       galleryContainer.innerHTML = logs.map(item => `
         <div class="log-card">
           <div class="log-card-header">
-            <img src="${item.image}" class="log-thumb" style="width:90px;height:90px;" onclick="openImageModal('${item.image}')">
+            <img src="${item.image}" class="log-thumb" style="width:85px;height:85px;" onclick="openImageModal('${item.image}')">
             <div class="log-info">
-              <div class="log-title" style="font-size:1.05rem;">${escapeHtml(item.title)}</div>
+              <div class="log-title" style="font-size:1rem;">${escapeHtml(item.title)}</div>
               <div style="font-size:0.8rem; color:var(--accent-gold); margin-bottom:4px;">
                 <i class="fa-regular fa-clock"></i> ${item.date} ${item.time}
               </div>
@@ -1549,14 +1912,13 @@
       updateBadge();
     }
 
-    // 13. カレンダー転記機能 (GoogleカレンダーURL & .ics生成)
     function registerToGoogleCalendar(encodedItem) {
       const item = JSON.parse(decodeURIComponent(encodedItem));
       const dtStart = formatGoogleDate(item.date, item.time);
       const dtEnd = formatGoogleDate(item.date, getEndTime(item.time));
 
       const title = encodeURIComponent(item.title);
-      const details = encodeURIComponent(`${item.memo}\n\n[スマート拡大鏡メモより転記]`);
+      const details = encodeURIComponent(`${item.memo}\n\n[スマート拡大鏡より転記]`);
       const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dtStart}/${dtEnd}&details=${details}`;
 
       window.open(url, "_blank");
@@ -1570,7 +1932,7 @@
       const title = encodeURIComponent(document.getElementById("editTitle").value.trim() || "撮影メモ");
       const date = document.getElementById("editDate").value;
       const time = document.getElementById("editTime").value || "09:00";
-      const memo = encodeURIComponent(document.getElementById("editMemo").value.trim() + "\n\n[スマート拡大鏡メモより転記]");
+      const memo = encodeURIComponent(document.getElementById("editMemo").value.trim() + "\n\n[スマート拡大鏡より転記]");
 
       const dtStart = formatGoogleDate(date, time);
       const dtEnd = formatGoogleDate(date, getEndTime(time));
@@ -1581,7 +1943,6 @@
       closeEditSheet();
     }
 
-    // iPhone・Android標準カレンダー用の .ics ファイル生成＆ダウンロード
     function downloadIcsFile(encodedItem) {
       const item = JSON.parse(decodeURIComponent(encodedItem));
       generateAndDownloadIcs(item.title, item.date, item.time, item.memo);
@@ -1635,7 +1996,6 @@
       showToast("カレンダーファイル(.ics)を出力しました。タップしてカレンダーに追加できます！");
     }
 
-    // ヘルパー関数
     function formatGoogleDate(dateStr, timeStr) {
       const d = (dateStr || "").replace(/-/g, "");
       const t = (timeStr || "09:00").replace(/:/g, "") + "00";
@@ -1676,7 +2036,7 @@
       })[m]);
     }
 
-    // 14. タブ切替
+    // タブ切替
     function switchTab(tab) {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
@@ -1684,6 +2044,9 @@
       if (tab === 'loupe') {
         document.getElementById("tabLoupe").classList.add("active");
         document.getElementById("viewLoupe").classList.add("active");
+      } else if (tab === 'dictionary') {
+        document.getElementById("tabDictionary").classList.add("active");
+        document.getElementById("viewDictionary").classList.add("active");
       } else if (tab === 'calendarLog') {
         document.getElementById("tabCalendarLog").classList.add("active");
         document.getElementById("viewCalendarLog").classList.add("active");
@@ -1695,7 +2058,6 @@
       }
     }
 
-    // 15. 写真拡大モーダル
     function openImageModal(src) {
       document.getElementById("imageModalImg").src = src;
       document.getElementById("imageModal").classList.add("active");
@@ -1705,7 +2067,6 @@
       document.getElementById("imageModal").classList.remove("active");
     }
 
-    // 16. トースト表示
     let toastTimer = null;
     function showToast(msg) {
       const t = document.getElementById("toast");
@@ -1716,21 +2077,17 @@
     }
 
     function showHelpModal() {
-      alert("【カレンダーログの使い方】\n\n1. 「拡大鏡」でチラシや書類、予定表の日付部分を大きく写してシャッターを押します。\n2. 「AI文字＆日時スキャン」を押すと、日付と時間が自動で読み取られ、カレンダーログに保存されます。\n3. 「カレンダーログ」タブからいつでも『Googleカレンダーへ』または『スマホ本体へ』を押してワンタップで予定に登録できます！");
+      alert("【カレンダーログの使い方】\n\n1. 「拡大鏡」でチラシや予定表の日付部分を撮影します。\n2. 日付・時間が自動検出され、カレンダーログに保存されます。\n3. 「カレンダーログ」タブから『Googleカレンダーへ』または『スマホ本体へ』を押してワンタップで予定に登録できます！");
     }
 
-    // 17. アプリ起動
     window.addEventListener("DOMContentLoaded", async () => {
       await initDB();
       await startCamera();
       loadLogs();
       updateBadge();
 
-      // PWA サービスワーカー登録
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.log('SW registration note:', err);
-        });
+        navigator.serviceWorker.register('./sw.js').catch(err => {});
       }
     });
   </script>
