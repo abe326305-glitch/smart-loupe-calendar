@@ -1,0 +1,22 @@
+{
+  "name": "スマート拡大鏡＆メモ",
+  "short_name": "拡大鏡メモ",
+  "description": "文字を大きく拡大して読める＆写真メモと日時をカレンダーに自動転記できる便利スマホアプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
