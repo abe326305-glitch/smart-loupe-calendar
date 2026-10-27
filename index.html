@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>スマート拡大鏡 - 漢字読み＆英語訳</title>
-  <link rel="manifest" href="./manifest.json?v=6">
+  <link rel="manifest" href="./manifest.json?v=7">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -929,6 +929,36 @@
     .pinpoint-reticle-box.single {
       width: 100px;
       height: 80px;
+    }
+
+  
+    /* ★ 直前の読み方再表示チップ ★ */
+    .reopen-last-chip {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      border: 1.5px solid #38bdf8;
+      color: #38bdf8;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 22;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .reopen-last-chip:active {
+      transform: translateX(-50%) scale(0.96);
+      background: #38bdf8;
+      color: #0f172a;
     }
 
   </style>
@@ -4928,7 +4958,13 @@ const SINGLE_KANJI_DICT = {
       }
     }
 
+    let lastPopupInfo = null;
+
     function showPinpointWordPopup(info) {
+      lastPopupInfo = info;
+      const reopenChip = document.getElementById("btnReopenLast");
+      if (reopenChip) reopenChip.style.display = "none";
+
       const popup = document.getElementById("wordReadingPopup");
       const badge = document.getElementById("popupTypeBadge");
       const word = document.getElementById("popupTargetWord");
@@ -4962,6 +4998,22 @@ const SINGLE_KANJI_DICT = {
       document.getElementById("wordReadingPopup").style.display = "none";
       lastFoundWord = "";
       clearTimeout(lastFoundWordTimer);
+
+      // ★ ×で閉じた後、画面下に「前回の読み方を再表示」ボタンを表示
+      if (lastPopupInfo) {
+        const chip = document.getElementById("btnReopenLast");
+        const label = document.getElementById("reopenWordLabel");
+        if (chip && label) {
+          label.innerText = lastPopupInfo.word;
+          chip.style.display = "flex";
+        }
+      }
+    }
+
+    function reopenLastWordPopup() {
+      if (lastPopupInfo) {
+        showPinpointWordPopup(lastPopupInfo);
+      }
     }
 
     function readAloudPopup() {
@@ -5311,7 +5363,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=6').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=7').catch(() => {});
       }
     });
   </script>
