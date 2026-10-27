@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>スマート拡大鏡 - 漢字読み＆英単語訳</title>
-  <link rel="manifest" href="./manifest.json">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>スマート拡大鏡 - 漢字読み＆英語訳</title>
+  <link rel="manifest" href="./manifest.json?v=3">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Tesseract.js (文字認識) -->
+  <!-- Tesseract.js (文字認識エンジン) -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <style>
     :root {
       --bg-dark: #090d16;
@@ -54,28 +58,31 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
-      padding-top: max(8px, env(safe-area-inset-top));
+      padding: 6px 10px;
+      padding-top: max(6px, env(safe-area-inset-top));
       background: rgba(15, 23, 42, 0.98);
       border-bottom: 1px solid var(--border-color);
       z-index: 50;
+      gap: 6px;
     }
 
     .app-title {
-      font-size: 1rem;
-      font-weight: 700;
+      font-size: 0.95rem;
+      font-weight: 800;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       color: var(--accent-gold);
       flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .header-tabs {
       display: flex;
-      gap: 5px;
+      gap: 4px;
       overflow-x: auto;
       scrollbar-width: none;
+      flex: 1;
     }
     .header-tabs::-webkit-scrollbar { display: none; }
 
@@ -83,15 +90,16 @@
       background: #1e293b;
       border: 1px solid var(--border-color);
       color: var(--text-sub);
-      padding: 5px 9px;
-      border-radius: 18px;
-      font-size: 0.75rem;
+      padding: 5px 8px;
+      border-radius: 16px;
+      font-size: 0.72rem;
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 4px;
       cursor: pointer;
       flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .tab-btn.active {
@@ -107,6 +115,22 @@
       font-size: 0.65rem;
       padding: 1px 5px;
       border-radius: 10px;
+    }
+
+    .header-reload-btn {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 4px 8px;
+      border-radius: 14px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     /* メイン表示領域 */
@@ -165,13 +189,13 @@
       z-index: 10;
     }
 
-    /* カメラ起動エラー/許可促進ボタン（カメラが映らない時用） */
+    /* カメラ起動エラー/許可促進ボタン */
     .camera-permission-box {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(15, 23, 42, 0.96);
       border: 2px solid var(--accent);
       padding: 20px;
       border-radius: 16px;
@@ -197,124 +221,183 @@
       gap: 8px;
     }
 
-    /* ★ ピンポイント照準枠（WebKitクラッシュの原因だった巨大box-shadowを完全排除） ★ */
-    .pinpoint-reticle {
+    /* ★ 画面上部の大きく見やすい「かざすだけスイッチ＆ステータスバー」 ★ */
+    .live-status-bar {
       position: absolute;
-      top: 38%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 180px;
-      height: 68px;
-      border: 2px solid var(--accent-gold);
-      border-radius: 12px;
-      z-index: 15;
-      background: rgba(0, 0, 0, 0.15); /* 軽い透過背景 */
+      top: 10px;
+      left: 10px;
+      right: 10px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      padding: 4px;
+      gap: 8px;
+      z-index: 25;
       pointer-events: none;
-    }
-    .pinpoint-reticle.scanning {
-      border-color: #38bdf8;
-    }
-
-    .reticle-center-cross {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 16px;
-      height: 16px;
-      pointer-events: none;
-    }
-    .reticle-center-cross::before {
-      content: ''; position: absolute; top: 7px; left: 0; width: 16px; height: 2px; background: var(--accent-gold);
-    }
-    .reticle-center-cross::after {
-      content: ''; position: absolute; top: 0; left: 7px; width: 2px; height: 16px; background: var(--accent-gold);
-    }
-
-    .reticle-tag {
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid var(--accent-gold);
-      color: var(--accent-gold);
-      font-size: 0.65rem;
-      font-weight: bold;
-      padding: 1px 8px;
-      border-radius: 10px;
-      margin-top: -12px;
-      white-space: nowrap;
     }
 
     .zoom-overlay-tag {
-      position: absolute;
-      top: 12px;
-      left: 12px;
       background: rgba(0, 0, 0, 0.75);
-      border: 1px solid var(--accent-gold);
+      border: 1.5px solid var(--accent-gold);
       color: var(--accent-gold);
-      padding: 3px 9px;
-      border-radius: 15px;
-      font-size: 0.8rem;
-      font-weight: bold;
-      z-index: 20;
+      padding: 5px 10px;
+      border-radius: 18px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      pointer-events: auto;
     }
 
-    .live-scan-toggle {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1.5px solid var(--accent-green);
-      color: white;
-      padding: 5px 10px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: bold;
-      z-index: 20;
+    /* ★ かざすだけ ON/OFF メインボタン（大きく鮮明に表示） ★ */
+    .live-scan-toggle-main {
+      pointer-events: auto;
+      background: linear-gradient(135deg, #15803d, #16a34a);
+      border: 2px solid #86efac;
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 25px;
+      font-size: 0.85rem;
+      font-weight: 800;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      transition: all 0.2s ease;
     }
-    .live-scan-toggle.off {
+    .live-scan-toggle-main.off {
+      background: rgba(30, 41, 59, 0.9);
       border-color: #64748b;
       color: #94a3b8;
+    }
+    .live-scan-toggle-main.scanning {
+      border-color: #38bdf8;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
     }
 
     .freeze-badge {
       position: absolute;
-      top: 48px;
+      top: 50px;
       right: 12px;
       background: var(--accent-red);
       color: white;
-      padding: 3px 9px;
+      padding: 4px 10px;
       border-radius: 15px;
       font-size: 0.75rem;
       font-weight: bold;
       display: none;
       z-index: 20;
+    }
+
+    /* ★ ピンポイント照準枠（中央に四隅マーカーとターゲット十字線） ★ */
+    .pinpoint-reticle-container {
+      position: absolute;
+      top: 36%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    .reticle-guide-text {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent-gold);
+      color: var(--accent-gold);
+      font-size: 0.72rem;
+      font-weight: bold;
+      padding: 3px 10px;
+      border-radius: 12px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    }
+
+    .pinpoint-reticle-box {
+      width: 220px;
+      height: 72px;
+      position: relative;
+      border: 2px dashed rgba(250, 204, 21, 0.6);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .pinpoint-reticle-box.scanning {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    /* 四隅のL字マーカー */
+    .pinpoint-reticle-box::before {
+      content: '';
+      position: absolute;
+      top: -2px; left: -2px;
+      width: 14px; height: 14px;
+      border-top: 3px solid var(--accent-gold);
+      border-left: 3px solid var(--accent-gold);
+      border-top-left-radius: 6px;
+    }
+    .pinpoint-reticle-box::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 14px; height: 14px;
+      border-bottom: 3px solid var(--accent-gold);
+      border-right: 3px solid var(--accent-gold);
+      border-bottom-right-radius: 6px;
+    }
+
+    .reticle-corner-tr {
+      position: absolute;
+      top: -2px; right: -2px;
+      width: 14px; height: 14px;
+      border-top: 3px solid var(--accent-gold);
+      border-right: 3px solid var(--accent-gold);
+      border-top-right-radius: 6px;
+    }
+    .reticle-corner-bl {
+      position: absolute;
+      bottom: -2px; left: -2px;
+      width: 14px; height: 14px;
+      border-bottom: 3px solid var(--accent-gold);
+      border-left: 3px solid var(--accent-gold);
+      border-bottom-left-radius: 6px;
+    }
+
+    .reticle-center-cross {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px; height: 16px;
+    }
+    .reticle-center-cross::before {
+      content: ''; position: absolute; top: 7px; left: 0; width: 16px; height: 2px; background: rgba(250, 204, 21, 0.85);
+    }
+    .reticle-center-cross::after {
+      content: ''; position: absolute; top: 0; left: 7px; width: 2px; height: 16px; background: rgba(250, 204, 21, 0.85);
     }
 
     /* ★ 漢字読み・英単語訳 ポップアップカード ★ */
     .word-reading-popup {
       position: absolute;
-      bottom: 145px;
+      bottom: 135px;
       left: 50%;
       transform: translateX(-50%);
-      width: 90%;
+      width: 92%;
       max-width: 380px;
       background: rgba(15, 23, 42, 0.98);
       border: 2px solid var(--accent-gold);
       border-radius: 14px;
       padding: 12px 14px;
-      z-index: 25;
+      z-index: 30;
       display: none;
       flex-direction: column;
       gap: 8px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+      animation: popIn 0.25s ease-out;
+    }
+    @keyframes popIn {
+      from { transform: translateX(-50%) scale(0.92); opacity: 0; }
+      to { transform: translateX(-50%) scale(1); opacity: 1; }
     }
 
     .popup-top-row {
@@ -326,7 +409,7 @@
     .popup-type-badge {
       font-size: 0.72rem;
       font-weight: bold;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: 6px;
       display: inline-flex;
       align-items: center;
@@ -336,22 +419,26 @@
     .popup-type-badge.english { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
 
     .popup-close-btn {
-      background: none;
-      border: none;
-      color: #94a3b8;
-      font-size: 1.1rem;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      font-size: 0.9rem;
       cursor: pointer;
-      padding: 2px 6px;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .word-target-title {
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       font-weight: 800;
       color: white;
     }
 
     .word-reading-box {
-      background: rgba(30, 41, 59, 0.9);
+      background: rgba(30, 41, 59, 0.95);
       border-left: 4px solid var(--accent-gold);
       padding: 8px 10px;
       border-radius: 6px;
@@ -369,11 +456,11 @@
     }
 
     .word-meaning-text {
-      font-size: 0.82rem;
+      font-size: 0.84rem;
       color: #cbd5e1;
-      line-height: 1.4;
-      background: rgba(0, 0, 0, 0.4);
-      padding: 6px 8px;
+      line-height: 1.45;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 6px 10px;
       border-radius: 6px;
     }
 
@@ -399,8 +486,8 @@
       left: 0;
       width: 100%;
       background: linear-gradient(to top, rgba(9, 13, 22, 0.98) 70%, rgba(9, 13, 22, 0.8) 90%, transparent);
-      padding: 10px 14px;
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding: 8px 12px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
       z-index: 30;
       display: flex;
       flex-direction: column;
@@ -480,8 +567,8 @@
     .sub-btn-label { font-size: 0.5rem; font-weight: 600; margin-top: 1px; }
 
     .shutter-btn {
-      width: 64px;
-      height: 64px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
       background: white;
       border: 4px solid var(--accent);
@@ -595,7 +682,7 @@
       border-left: 3px solid var(--accent-gold);
     }
 
-    /* ログ */
+    /* ログ一覧 */
     .log-list { display: flex; flex-direction: column; gap: 12px; }
     .log-card {
       background: var(--card-bg);
@@ -673,20 +760,6 @@
       gap: 5px;
       cursor: pointer;
     }
-    .card-icon-btn {
-      background: #1e293b;
-      border: 1px solid var(--border-color);
-      color: var(--text-sub);
-      width: 30px;
-      height: 30px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-    .card-icon-btn.delete { color: var(--accent-red); }
 
     /* モーダル */
     .modal-backdrop {
@@ -798,19 +871,6 @@
       z-index: 200;
     }
     .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-
-    .image-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.95);
-      z-index: 150;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    .image-modal.active { display: flex; }
-    .image-modal img { max-width: 100%; max-height: 90vh; border-radius: 8px; object-fit: contain; }
   </style>
 </head>
 <body>
@@ -836,6 +896,10 @@
         <i class="fa-regular fa-images"></i> 写真メモ
       </button>
     </div>
+    <!-- キャッシュクリア＆最新版再読込ボタン -->
+    <button class="header-reload-btn" onclick="forceUpdateApp()" title="最新版に更新">
+      <i class="fa-solid fa-rotate"></i> 更新
+    </button>
   </header>
 
   <!-- メイン領域 -->
@@ -856,21 +920,27 @@
           </button>
         </div>
 
-        <!-- ★ ピンポイント照準枠 ★ -->
-        <div class="pinpoint-reticle" id="pinpointReticle">
-          <div class="reticle-center-cross"></div>
-          <span class="reticle-tag">知りたい文字をここに合わせる</span>
+        <!-- ★ 画面上部：倍率表示 ＆ かざすだけON/OFFメインボタン ★ -->
+        <div class="live-status-bar">
+          <div class="zoom-overlay-tag" id="zoomBadge">1.0x</div>
+          
+          <button class="live-scan-toggle-main" id="btnLiveToggle" onclick="toggleLiveScan()">
+            <i class="fa-solid fa-bolt" id="liveScanBolt"></i>
+            <span id="liveScanStatusText">かざすだけ ON</span>
+          </button>
         </div>
 
-        <div class="zoom-overlay-tag" id="zoomBadge">1.0x</div>
-
-        <!-- かざすだけON/OFFスイッチ -->
-        <button class="live-scan-toggle" id="btnLiveToggle" onclick="toggleLiveScan()">
-          <i class="fa-solid fa-bolt"></i>
-          <span id="liveScanStatusText">かざすだけ ON</span>
-        </button>
-
         <div class="freeze-badge" id="freezeBadge"><i class="fa-solid fa-pause"></i> 静止中</div>
+
+        <!-- ★ ピンポイント照準枠（中央に配置、四隅マーカー付き） ★ -->
+        <div class="pinpoint-reticle-container" id="pinpointContainer">
+          <div class="reticle-guide-text" id="reticleGuideText">知りたい文字を中央の枠に合わせてください</div>
+          <div class="pinpoint-reticle-box" id="pinpointBox">
+            <div class="reticle-corner-tr"></div>
+            <div class="reticle-corner-bl"></div>
+            <div class="reticle-center-cross"></div>
+          </div>
+        </div>
 
         <!-- ★ かざした文字の「漢字読み」「英単語訳」ポップアップ ★ -->
         <div class="word-reading-popup" id="wordReadingPopup">
@@ -981,7 +1051,6 @@
         </div>
         <div class="result-main-text" id="resultMainText"></div>
         <div class="result-sub-text" id="resultSubText"></div>
-        <div id="externalLinksRow" style="display:flex; gap:8px; margin-top:4px;"></div>
       </div>
     </div>
 
@@ -1063,7 +1132,7 @@
 
   <script>
     /* ========================================================
-       常用漢字・難読漢字・標識・医療 内蔵辞書
+       常用漢字・難読漢字・病院・薬・日用品・街中 辞書データベース
        ======================================================== */
     const KANJI_DATABASE = {
       "処方箋": { reading: "しょほうせん", meaning: "医師が薬の種類や服用法を書いた書類" },
@@ -1088,19 +1157,26 @@
       "要冷凍": { reading: "ようれいとう", meaning: "マイナス18℃以下で凍らせて保存すること" },
       "領収書": { reading: "りょうしゅうしょ", meaning: "代金を受け取ったことを証明する書類" },
       "請求書": { reading: "せいきゅうしょ", meaning: "代金の支払いを求める書類" },
+      "納品書": { reading: "のうひんしょ", meaning: "品物を納めた明細書類" },
+      "見積書": { reading: "みつもりしょ", meaning: "事前に費用を計算して提示する書類" },
       "営業中": { reading: "えいぎょうちゅう", meaning: "店が開いていて業務を行っていること" },
       "準備中": { reading: "じゅんびちゅう", meaning: "開店や開始の準備をしていること" },
       "定休日": { reading: "ていきゅうび", meaning: "定期的に決まっている休みの日" },
+      "年中無休": { reading: "ねんじゅうむきゅう", meaning: "一年中休みなく営業すること" },
       "非常口": { reading: "ひじょうぐち", meaning: "火災や緊急時の脱出口" },
       "立入禁止": { reading: "たちいりきんし", meaning: "入ることを禁止する場所" },
+      "関係者以外": { reading: "かんけいしゃいがい", meaning: "その仕事に関係のない人" },
       "土足厳禁": { reading: "どそくげんきん", meaning: "靴を脱いで入る場所" },
       "頭上注意": { reading: "ずじょうちゅうい", meaning: "頭をぶつけないよう気をつけること" },
       "足元注意": { reading: "あしもとちゅうい", meaning: "つまずきや転倒に気をつけること" },
       "禁煙": { reading: "きんえん", meaning: "タバコを吸ってはいけない場所" },
+      "喫煙所": { reading: "きつえんじょ", meaning: "タバコを吸うことが認められている場所" },
       "駐車場": { reading: "ちゅうしゃじょう", meaning: "自動車を停める場所" },
+      "駐輪場": { reading: "ちゅうりんじょう", meaning: "自転車やバイクを停める場所" },
       "受付": { reading: "うけつけ", meaning: "来訪者や書類を受け付ける場所" },
       "会計": { reading: "かいけい", meaning: "代金の計算や支払いを行う場所" },
       "精算": { reading: "せいさん", meaning: "金額を計算して決済すること" },
+      "案内所": { reading: "あんないじょ", meaning: "道や施設の使い方を案内する所" },
       "躊躇": { reading: "ちゅうちょ", meaning: "あれこれ迷ってためらうこと" },
       "忖度": { reading: "そんたく", meaning: "他人の胸中や心情をおしはかること" },
       "曖昧": { reading: "あいまい", meaning: "あやふやで、はっきりしないこと" },
@@ -1119,27 +1195,36 @@
       "貼付": { reading: "ちょうふ／はりつけ", meaning: "貼り付けること" },
       "捺印": { reading: "なついん", meaning: "印鑑を押すこと" },
       "署名": { reading: "しょめい", meaning: "自分の名前を本人が書くこと" },
-      "杞憂": { reading: "きゆう", meaning: "無用な心配・取り越し苦労" }
+      "杞憂": { reading: "きゆう", meaning: "無用な心配・取り越し苦労" },
+      "行儀": { reading: "ぎょうぎ", meaning: "立ち居振る舞いや作法" },
+      "敷居": { reading: "しきい", meaning: "障子やふすまの下にある溝の木" }
     };
 
     const COMMON_ENGLISH_DICT = {
-      "open": { ja: "開く / 営業中", desc: "店が開いている状態、またはドアを開けること" },
-      "close": { ja: "閉まる / 準備中", desc: "店が閉まっている状態、またはドアを閉めること" },
+      "open": { ja: "営業中 / 開く", desc: "店が開いている状態、またはドアを開けること" },
+      "close": { ja: "準備中 / 閉まる", desc: "店が閉まっている状態、またはドアを閉めること" },
       "closed": { ja: "休業 / 準備中", desc: "本日は営業していない状態" },
-      "stop": { ja: "止まれ / 停止", desc: "一時停止、動いているものを止めること" },
-      "caution": { ja: "注意 / 警告", desc: "事故や危険が起きないよう気をつけること" },
-      "warning": { ja: "警告 / 危険", desc: "強い注意を促す合図" },
-      "danger": { ja: "危険 / 危険区域", desc: "危害が及ぶおそれがあること" },
+      "stop": { ja: "止まれ / 一時停止", desc: "一時停止、動いているものを止めること" },
+      "caution": { ja: "注意 / 用心", desc: "事故や危険が起きないよう気をつけること" },
+      "warning": { ja: "警告 / 危険注意", desc: "強い注意を促す合図" },
+      "danger": { ja: "危険 / 立ち入り危険", desc: "危害が及ぶおそれがあること" },
       "push": { ja: "押す", desc: "ドアなどを前方に押し開けること" },
       "pull": { ja: "引く", desc: "ドアなどを手前に引き開けること" },
-      "exit": { ja: "出口", desc: "外へ出るためのドアや通路" },
+      "exit": { ja: "出口 / 非常口", desc: "外へ出るためのドアや通路" },
       "entrance": { ja: "入口", desc: "中へ入るためのドアや通路" },
       "welcome": { ja: "ようこそ / 歓迎", desc: "来訪者を歓迎するあいさつ" },
       "toilet": { ja: "お手洗い / トイレ", desc: "便所・洗面所" },
       "restroom": { ja: "お手洗い / 化粧室", desc: "便所・化粧室" },
-      "sale": { ja: "セール / 特売", desc: "商品を通常より安く販売すること" },
+      "information": { ja: "案内所 / 総合案内", desc: "道案内や情報案内窓口" },
       "free": { ja: "無料 / 自由", desc: "お金がかからないこと" },
-      "wifi": { ja: "無線LAN (Wi-Fi)", desc: "インターネット接続電波" }
+      "sale": { ja: "セール / 特売", desc: "商品を通常より安く販売すること" },
+      "wifi": { ja: "無線LAN (Wi-Fi)", desc: "インターネット接続の電波" },
+      "stairs": { ja: "階段", desc: "上り下りするための階段" },
+      "elevator": { ja: "エレベーター", desc: "昇降機" },
+      "escalator": { ja: "エスカレーター", desc: "動く階段" },
+      "keep out": { ja: "立入禁止", desc: "入ってはいけない場所" },
+      "no smoking": { ja: "禁煙", desc: "タバコを吸ってはいけない場所" },
+      "staff only": { ja: "関係者専用", desc: "職員・関係者以外は入れない場所" }
     };
 
     let currentStream = null;
@@ -1166,6 +1251,23 @@
     let popupVoiceWord = "";
     let popupVoiceLang = "ja-JP";
     let db = null;
+
+    /* 強制キャッシュクリア更新（最新版を一発反映） */
+    async function forceUpdateApp() {
+      showToast("最新版を読み込んでいます...");
+      try {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (let reg of regs) { await reg.unregister(); }
+        }
+      } catch (e) {}
+      const cleanUrl = window.location.origin + window.location.pathname + '?t=' + Date.now();
+      window.location.replace(cleanUrl);
+    }
 
     function initDB() {
       return new Promise((resolve, reject) => {
@@ -1209,7 +1311,6 @@
         startLiveScanningLoop();
       } catch (err) {
         console.warn("Camera init warning:", err);
-        // カメラが自動起動できなかった場合は手動許可ボックスを表示
         permBox.style.display = "flex";
       }
     }
@@ -1295,24 +1396,26 @@
       showToast(`フィルター: ${mode.name}`);
     }
 
-    /* ピンポイントスキャン */
+    /* ★ かざすだけ ON / OFF の切り替え ★ */
     function toggleLiveScan() {
       isLiveScanActive = !isLiveScanActive;
       const btn = document.getElementById("btnLiveToggle");
       const text = document.getElementById("liveScanStatusText");
       const popup = document.getElementById("wordReadingPopup");
-      const reticle = document.getElementById("pinpointReticle");
+      const reticle = document.getElementById("pinpointContainer");
 
       if (isLiveScanActive) {
         btn.classList.remove("off");
         text.innerText = "かざすだけ ON";
         reticle.style.display = "flex";
+        showToast("かざすだけモード：ON");
         startLiveScanningLoop();
       } else {
         btn.classList.add("off");
         text.innerText = "かざすだけ OFF";
         popup.style.display = "none";
         reticle.style.display = "none";
+        showToast("かざすだけモード：OFF");
         if (liveScanTimer) clearTimeout(liveScanTimer);
       }
     }
@@ -1329,27 +1432,32 @@
           await scanPinpointTargetWord();
         }
         startLiveScanningLoop();
-      }, 1500);
+      }, 1400);
     }
 
+    /* ★ ピンポイント照準枠内だけの文字認識 ★ */
     async function scanPinpointTargetWord() {
       const video = document.getElementById("videoElement");
       if (!video || !video.videoWidth) return;
 
       isOcrProcessing = true;
-      const reticle = document.getElementById("pinpointReticle");
-      reticle.classList.add("scanning");
+      const box = document.getElementById("pinpointBox");
+      const toggleBtn = document.getElementById("btnLiveToggle");
+      const guideText = document.getElementById("reticleGuideText");
+      box.classList.add("scanning");
+      toggleBtn.classList.add("scanning");
+      guideText.innerText = "文字を認識中...";
 
       try {
         const cropCanvas = document.getElementById("cropCanvas");
         const vw = video.videoWidth;
         const vh = video.videoHeight;
 
-        // ピンポイント中央エリアだけを抽出
-        const cropW = Math.floor(vw * 0.35);
-        const cropH = Math.floor(vh * 0.14);
+        // ピンポイント枠（中央エリア）の座標
+        const cropW = Math.floor(vw * 0.40);
+        const cropH = Math.floor(vh * 0.16);
         const cropX = Math.floor((vw - cropW) / 2);
-        const cropY = Math.floor(vh * 0.38 - cropH / 2);
+        const cropY = Math.floor(vh * 0.36 - cropH / 2);
 
         cropCanvas.width = cropW * 2;
         cropCanvas.height = cropH * 2;
@@ -1357,7 +1465,7 @@
 
         ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropCanvas.width, cropCanvas.height);
 
-        // 二値化
+        // 白黒二値化処理（文字のエッジを際立たせる）
         const imgData = ctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
         const d = imgData.data;
         for (let i = 0; i < d.length; i += 4) {
@@ -1379,7 +1487,9 @@
       } catch (err) {
         console.warn(err);
       } finally {
-        reticle.classList.remove("scanning");
+        box.classList.remove("scanning");
+        toggleBtn.classList.remove("scanning");
+        guideText.innerText = "知りたい文字を中央の枠に合わせてください";
         isOcrProcessing = false;
       }
     }
@@ -1407,21 +1517,22 @@
       // 英単語判定
       const engMatch = rawText.match(/[a-zA-Z]{3,}/g);
       if (engMatch && engMatch.length > 0) {
-        const engWord = engMatch[0].toLowerCase();
-        if (lastFoundWord === engWord) return;
-        lastFoundWord = engWord;
-
-        if (COMMON_ENGLISH_DICT[engWord]) {
-          const eInfo = COMMON_ENGLISH_DICT[engWord];
-          showPinpointWordPopup({
-            type: "english",
-            word: engWord.toUpperCase(),
-            reading: `【 ${eInfo.ja} 】`,
-            meaning: eInfo.desc,
-            voiceText: engWord,
-            voiceLang: "en-US"
-          });
-          return;
+        for (let rawMatch of engMatch) {
+          const engWord = rawMatch.toLowerCase();
+          if (COMMON_ENGLISH_DICT[engWord]) {
+            if (lastFoundWord === engWord) return;
+            lastFoundWord = engWord;
+            const eInfo = COMMON_ENGLISH_DICT[engWord];
+            showPinpointWordPopup({
+              type: "english",
+              word: engWord.toUpperCase(),
+              reading: `【 ${eInfo.ja} 】`,
+              meaning: eInfo.desc,
+              voiceText: engWord,
+              voiceLang: "en-US"
+            });
+            return;
+          }
         }
       }
     }
@@ -1465,7 +1576,7 @@
       window.speechSynthesis.speak(u);
     }
 
-    // 撮影
+    /* 撮影 */
     function captureCurrentFrame() {
       const video = document.getElementById("videoElement");
       const canvas = document.createElement("canvas");
@@ -1561,7 +1672,7 @@
       for (const [k, v] of Object.entries(KANJI_DATABASE)) {
         if (q.includes(k)) { meaning = `【${v.reading}】${v.meaning}`; break; }
       }
-      displayKnowledgeResult("green", `📖 言葉の意味`, `用語: ${q}`, meaning || `辞書にてご確認ください。`, q, "ja-JP");
+      displayKnowledgeResult("purple", `📖 言葉の意味`, `用語: ${q}`, meaning || `辞書にてご確認ください。`, q, "ja-JP");
     }
 
     function displayKnowledgeResult(badgeColor, badgeHtml, mainHtml, subHtml, voiceText, voiceLang) {
@@ -1758,7 +1869,7 @@
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=3').catch(() => {});
       }
     });
   </script>
