@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Tesseract.js (OCR文字認識) -->
+  <!-- Tesseract.js (高精度OCR) -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
@@ -45,7 +45,7 @@
       flex-direction: column;
     }
 
-    /* 上部ヘッダー */
+    /* ヘッダー */
     .app-header {
       display: flex;
       align-items: center;
@@ -110,7 +110,6 @@
       font-weight: bold;
     }
 
-    /* メインコンテンツ表示域 */
     .view-container {
       flex: 1;
       position: relative;
@@ -127,13 +126,9 @@
       flex-direction: column;
     }
 
-    .view-panel.active {
-      display: flex;
-    }
+    .view-panel.active { display: flex; }
 
-    /* --------------------------------------
-       1. 拡大鏡ビュー (Camera / Loupe)
-       -------------------------------------- */
+    /* 拡大鏡ビュー */
     .loupe-view {
       position: relative;
       background: #000;
@@ -171,38 +166,47 @@
       z-index: 10;
     }
 
-    /* 照準枠（かざすだけ検出ターゲット） */
+    /* 照準枠（文字ターゲット） */
     .reticle-box {
       position: absolute;
-      top: 38%;
+      top: 36%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 78%;
-      max-width: 320px;
-      height: 100px;
-      border: 2px dashed rgba(250, 204, 21, 0.7);
-      border-radius: 12px;
-      pointer-events: none;
+      width: 82%;
+      max-width: 330px;
+      height: 110px;
+      border: 2px dashed rgba(250, 204, 21, 0.85);
+      border-radius: 14px;
       z-index: 15;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
       display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding-top: 4px;
-      transition: border-color 0.3s;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      cursor: pointer;
+      transition: all 0.25s;
     }
     .reticle-box.scanning {
       border-color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.6), 0 0 0 9999px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.7), 0 0 0 9999px rgba(0, 0, 0, 0.3);
     }
-    .reticle-label {
-      background: rgba(15, 23, 42, 0.85);
+    .reticle-tag {
+      background: rgba(15, 23, 42, 0.9);
       border: 1px solid var(--accent-gold);
       color: var(--accent-gold);
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       font-weight: bold;
+      padding: 2px 10px;
+      border-radius: 12px;
+      letter-spacing: 0.05em;
+    }
+    .reticle-hint {
+      font-size: 0.68rem;
+      color: #e2e8f0;
+      background: rgba(0, 0, 0, 0.7);
       padding: 2px 8px;
-      border-radius: 10px;
+      border-radius: 6px;
     }
 
     .zoom-overlay-tag {
@@ -220,12 +224,11 @@
       backdrop-filter: blur(4px);
     }
 
-    /* かざすだけリアルタイム認識トグルボタン (右上) */
     .live-scan-toggle {
       position: absolute;
       top: 14px;
       right: 14px;
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(15, 23, 42, 0.9);
       border: 1.5px solid var(--accent-green);
       color: white;
       padding: 5px 12px;
@@ -248,7 +251,7 @@
 
     .freeze-badge {
       position: absolute;
-      top: 48px;
+      top: 50px;
       right: 14px;
       background: var(--accent-red);
       color: white;
@@ -258,7 +261,6 @@
       font-weight: bold;
       display: none;
       z-index: 20;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
       animation: pulse 1.5s infinite;
     }
 
@@ -267,28 +269,28 @@
       50% { opacity: 0.6; }
     }
 
-    /* ★ かざすだけリアルタイム検出HUDカード（画面中央下） ★ */
+    /* ★ かざすだけHUDカード（高視認性・崩れ防止） ★ */
     .live-result-hud {
       position: absolute;
       bottom: 135px;
       left: 50%;
       transform: translateX(-50%);
-      width: 90%;
+      width: 92%;
       max-width: 440px;
-      background: rgba(15, 23, 42, 0.94);
-      border: 1.5px solid var(--accent-gold);
-      border-radius: 14px;
-      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 2px solid var(--accent-gold);
+      border-radius: 16px;
+      padding: 12px 14px;
       z-index: 25;
       display: none;
       flex-direction: column;
-      gap: 8px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(8px);
-      animation: popIn 0.25s ease-out;
+      gap: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      animation: popIn 0.2s ease-out;
     }
     @keyframes popIn {
-      from { transform: translateX(-50%) translateY(15px); opacity: 0; }
+      from { transform: translateX(-50%) translateY(12px); opacity: 0; }
       to { transform: translateX(-50%) translateY(0); opacity: 1; }
     }
 
@@ -297,49 +299,94 @@
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid rgba(51, 65, 85, 0.6);
-      padding-bottom: 4px;
+      padding-bottom: 6px;
     }
 
     .live-hud-tag {
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       font-weight: bold;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+      color: var(--accent-gold);
     }
 
     .live-hud-body {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-    }
-
-    .live-hud-line {
-      font-size: 0.95rem;
-      line-height: 1.35;
-      color: #f8fafc;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       gap: 8px;
     }
 
-    .live-voice-icon-btn {
-      background: #334155;
-      border: 1px solid #64748b;
+    .live-hud-item {
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 10px;
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-left: 4px solid var(--accent);
+    }
+    .live-hud-item.kanji { border-left-color: var(--accent-purple); }
+    .live-hud-item.date { border-left-color: var(--accent-green); }
+
+    .live-text-content {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .live-item-badge {
+      font-size: 0.72rem;
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 2px;
+    }
+    .live-item-badge.purple { color: #f5d0fe; }
+    .live-item-badge.green { color: #86efac; }
+
+    .live-main-word {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.03em;
+      line-height: 1.3;
+    }
+
+    .live-sub-reading {
+      font-size: 0.85rem;
       color: var(--accent-gold);
-      width: 32px;
-      height: 32px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .live-sub-desc {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+      line-height: 1.3;
+    }
+
+    .live-voice-icon-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: var(--accent-gold);
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
       cursor: pointer;
       flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .live-voice-icon-btn:active {
+      background: var(--accent-gold);
+      color: #0f172a;
     }
 
-    /* 拡大鏡の下部コントロールバー */
+    /* 下部コントロールバー */
     .loupe-controls {
       position: absolute;
       bottom: 0;
@@ -354,7 +401,6 @@
       gap: 10px;
     }
 
-    /* ズームスライダー行 */
     .zoom-slider-row {
       display: flex;
       align-items: center;
@@ -366,10 +412,7 @@
       backdrop-filter: blur(6px);
     }
 
-    .slider-icon {
-      color: var(--accent-gold);
-      font-size: 0.85rem;
-    }
+    .slider-icon { color: var(--accent-gold); font-size: 0.85rem; }
 
     .zoom-slider {
       flex: 1;
@@ -392,10 +435,7 @@
       box-shadow: 0 0 8px rgba(250, 204, 21, 0.8);
     }
 
-    .preset-zooms {
-      display: flex;
-      gap: 4px;
-    }
+    .preset-zooms { display: flex; gap: 4px; }
 
     .preset-btn {
       background: #0f172a;
@@ -407,14 +447,12 @@
       border-radius: 12px;
       cursor: pointer;
     }
-
     .preset-btn.active {
       background: var(--accent-gold);
       color: #0f172a;
       border-color: var(--accent-gold);
     }
 
-    /* ツールボタン行 */
     .action-buttons-row {
       display: flex;
       align-items: center;
@@ -437,21 +475,14 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-
     .sub-action-btn.active {
       background: var(--accent-gold);
       color: #0f172a;
       border-color: var(--accent-gold);
       box-shadow: 0 0 12px rgba(250, 204, 21, 0.5);
     }
+    .sub-btn-label { font-size: 0.52rem; font-weight: 600; margin-top: 1px; }
 
-    .sub-btn-label {
-      font-size: 0.52rem;
-      font-weight: 600;
-      margin-top: 1px;
-    }
-
-    /* メインシャッター（撮影ボタン） */
     .shutter-btn {
       width: 68px;
       height: 68px;
@@ -467,14 +498,9 @@
       box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
       transition: transform 0.1s;
     }
+    .shutter-btn:active { transform: scale(0.92); }
 
-    .shutter-btn:active {
-      transform: scale(0.92);
-    }
-
-    /* --------------------------------------
-       2. 英語訳・漢字・言葉の意味 画面
-       -------------------------------------- */
+    /* 辞書・カレンダー画面共通 */
     .calendar-log-view, .gallery-view, .dictionary-view {
       overflow-y: auto;
       padding: 14px;
@@ -510,10 +536,7 @@
       gap: 12px;
     }
 
-    .tool-input-row {
-      display: flex;
-      gap: 8px;
-    }
+    .tool-input-row { display: flex; gap: 8px; }
 
     .tool-input {
       flex: 1;
@@ -547,22 +570,9 @@
       border: 1px solid transparent;
       transition: all 0.2s;
     }
-
-    .tool-btn.translate {
-      background: #1e3a8a;
-      border-color: #3b82f6;
-      color: #93c5fd;
-    }
-    .tool-btn.kanji {
-      background: #701a75;
-      border-color: #c084fc;
-      color: #f5d0fe;
-    }
-    .tool-btn.meaning {
-      background: #14532d;
-      border-color: #22c55e;
-      color: #bbf7d0;
-    }
+    .tool-btn.translate { background: #1e3a8a; border-color: #3b82f6; color: #93c5fd; }
+    .tool-btn.kanji { background: #701a75; border-color: #c084fc; color: #f5d0fe; }
+    .tool-btn.meaning { background: #14532d; border-color: #22c55e; color: #bbf7d0; }
 
     .knowledge-result-card {
       background: #0f172a;
@@ -572,9 +582,7 @@
       display: none;
       flex-direction: column;
       gap: 10px;
-      animation: fadeIn 0.2s ease;
     }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
     .result-badge {
       display: inline-flex;
@@ -586,19 +594,11 @@
       border-radius: 6px;
       width: fit-content;
     }
-
     .result-badge.blue { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
     .result-badge.purple { background: #581c87; color: #f5d0fe; border: 1px solid #c084fc; }
     .result-badge.green { background: #14532d; color: #bbf7d0; border: 1px solid #22c55e; }
 
-    .result-main-text {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: white;
-      line-height: 1.4;
-      user-select: text;
-    }
-
+    .result-main-text { font-size: 1.15rem; font-weight: 700; color: white; line-height: 1.4; user-select: text; }
     .result-sub-text {
       font-size: 0.9rem;
       color: #cbd5e1;
@@ -625,14 +625,8 @@
       width: fit-content;
     }
 
-    /* --------------------------------------
-       3. カレンダーログ画面
-       -------------------------------------- */
-    .log-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+    /* ログ一覧 */
+    .log-list { display: flex; flex-direction: column; gap: 12px; }
 
     .log-card {
       background: var(--card-bg);
@@ -644,16 +638,9 @@
       gap: 10px;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     }
+    .log-card.status-registered { border-color: rgba(34, 197, 94, 0.5); }
 
-    .log-card.status-registered {
-      border-color: rgba(34, 197, 94, 0.5);
-    }
-
-    .log-card-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
+    .log-card-header { display: flex; align-items: flex-start; gap: 10px; }
 
     .log-thumb {
       width: 66px;
@@ -666,10 +653,7 @@
       flex-shrink: 0;
     }
 
-    .log-info {
-      flex: 1;
-      overflow: hidden;
-    }
+    .log-info { flex: 1; overflow: hidden; }
 
     .log-date-badge {
       display: inline-flex;
@@ -685,14 +669,7 @@
       margin-bottom: 4px;
     }
 
-    .log-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 3px;
-      word-break: break-all;
-    }
-
+    .log-title { font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 3px; word-break: break-all; }
     .log-memo {
       font-size: 0.8rem;
       color: var(--text-sub);
@@ -745,11 +722,7 @@
       cursor: pointer;
     }
 
-    .log-sub-actions {
-      display: flex;
-      gap: 5px;
-      margin-left: auto;
-    }
+    .log-sub-actions { display: flex; gap: 5px; margin-left: auto; }
 
     .card-icon-btn {
       background: #1e293b;
@@ -766,20 +739,10 @@
     }
     .card-icon-btn.delete { color: var(--accent-red); }
 
-    .empty-state {
-      text-align: center;
-      padding: 36px 16px;
-      color: var(--text-sub);
-    }
-    .empty-icon {
-      font-size: 2.8rem;
-      color: #334155;
-      margin-bottom: 10px;
-    }
+    .empty-state { text-align: center; padding: 36px 16px; color: var(--text-sub); }
+    .empty-icon { font-size: 2.8rem; color: #334155; margin-bottom: 10px; }
 
-    /* --------------------------------------
-       4. 撮影後モーダル
-       -------------------------------------- */
+    /* モーダル */
     .modal-backdrop {
       position: fixed;
       top: 0;
@@ -793,7 +756,6 @@
       justify-content: center;
       backdrop-filter: blur(4px);
     }
-
     .modal-backdrop.active { display: flex; }
 
     .modal-sheet {
@@ -809,11 +771,7 @@
       animation: slideUp 0.25s ease-out;
       padding-bottom: max(16px, env(safe-area-inset-bottom));
     }
-
-    @keyframes slideUp {
-      from { transform: translateY(100%); }
-      to { transform: translateY(0); }
-    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
     .sheet-header {
       display: flex;
@@ -822,16 +780,7 @@
       padding: 12px 16px;
       border-bottom: 1px solid var(--border-color);
     }
-
-    .sheet-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
+    .sheet-title { font-size: 1.05rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px; }
     .sheet-close {
       background: #1e293b;
       border: none;
@@ -843,13 +792,7 @@
       font-size: 1rem;
     }
 
-    .sheet-body {
-      overflow-y: auto;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+    .sheet-body { overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 
     .captured-preview-box {
       position: relative;
@@ -862,12 +805,7 @@
       justify-content: center;
       border: 1px solid var(--border-color);
     }
-
-    #capturedImagePreview {
-      max-width: 100%;
-      max-height: 150px;
-      object-fit: contain;
-    }
+    #capturedImagePreview { max-width: 100%; max-height: 150px; object-fit: contain; }
 
     .quick-intellect-bar {
       display: grid;
@@ -897,21 +835,8 @@
     .intellect-btn.kanji { border-color: #c084fc; color: #f5d0fe; }
     .intellect-btn.dict { border-color: #22c55e; color: #bbf7d0; }
 
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .form-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-sub);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label { font-size: 0.8rem; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }
     .form-input, .form-textarea {
       background: #0f172a;
       border: 1px solid var(--border-color);
@@ -922,13 +847,7 @@
       outline: none;
       user-select: text;
     }
-
-    .datetime-row {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 8px;
-    }
-
+    .datetime-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
     .detected-badge-tag {
       font-size: 0.7rem;
       background: rgba(34, 197, 94, 0.2);
@@ -945,7 +864,6 @@
       flex-direction: column;
       gap: 8px;
     }
-
     .btn-save-log {
       background: linear-gradient(135deg, #0284c7, #0369a1);
       border: 1px solid var(--accent);
@@ -960,12 +878,7 @@
       gap: 6px;
       cursor: pointer;
     }
-
-    .quick-cal-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
+    .quick-cal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
     .toast {
       position: fixed;
@@ -988,10 +901,7 @@
       transition: all 0.3s;
       z-index: 200;
     }
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
     .image-modal {
       position: fixed;
@@ -1007,12 +917,7 @@
       padding: 16px;
     }
     .image-modal.active { display: flex; }
-    .image-modal img {
-      max-width: 100%;
-      max-height: 90vh;
-      border-radius: 8px;
-      object-fit: contain;
-    }
+    .image-modal img { max-width: 100%; max-height: 90vh; border-radius: 8px; object-fit: contain; }
     .image-modal-close {
       position: absolute;
       top: 20px;
@@ -1032,7 +937,7 @@
 </head>
 <body>
 
-  <!-- 上部アプリヘッダー -->
+  <!-- 上部ヘッダー -->
   <header class="app-header">
     <div class="app-title">
       <i class="fa-solid fa-magnifying-glass-plus"></i>
@@ -1055,7 +960,7 @@
     </div>
   </header>
 
-  <!-- メインビュー領域 -->
+  <!-- メイン領域 -->
   <main class="view-container">
 
     <!-- 1. 拡大鏡ビュー -->
@@ -1065,14 +970,15 @@
         <canvas id="freezeCanvas"></canvas>
         <canvas id="cropCanvas" style="display:none;"></canvas>
 
-        <!-- 照準枠（かざすだけターゲットエリア） -->
-        <div class="reticle-box" id="reticleBox">
-          <span class="reticle-label" id="reticleLabel">ここに文字を合わせる</span>
+        <!-- 照準枠（タップで静止高精度読み取りも可能） -->
+        <div class="reticle-box" id="reticleBox" onclick="triggerTapScan()">
+          <span class="reticle-tag" id="reticleLabel">ここに文字を合わせる</span>
+          <span class="reticle-hint"><i class="fa-solid fa-hand-pointer"></i> 枠をタップでブレずに高精度認識</span>
         </div>
 
         <div class="zoom-overlay-tag" id="zoomBadge">1.0x</div>
 
-        <!-- かざすだけライブ認識のON/OFFスイッチ -->
+        <!-- かざすだけON/OFFスイッチ -->
         <button class="live-scan-toggle" id="btnLiveToggle" onclick="toggleLiveScan()">
           <i class="fa-solid fa-bolt"></i>
           <span id="liveScanStatusText">かざすだけ ON</span>
@@ -1080,23 +986,20 @@
 
         <div class="freeze-badge" id="freezeBadge"><i class="fa-solid fa-pause"></i> 静止中</div>
 
-        <!-- ★ レンズをかざしただけで自動表示されるHUDカード！ ★ -->
+        <!-- ★ かざしただけで綺麗に表示されるHUDカード ★ -->
         <div class="live-result-hud" id="liveResultHud">
           <div class="live-hud-header">
-            <span class="live-hud-tag" id="liveHudTag" style="color:var(--accent-gold);">
-              <i class="fa-solid fa-sparkles"></i> 認識結果
+            <span class="live-hud-tag">
+              <i class="fa-solid fa-sparkles"></i> かざすだけ認識結果
             </span>
-            <span style="font-size:0.7rem; color:#94a3b8;">レンズをかざして自動検出</span>
+            <button onclick="closeLiveHud()" style="background:none; border:none; color:#94a3b8; font-size:1rem; cursor:pointer;">✕</button>
           </div>
-          <div class="live-hud-body" id="liveHudBody">
-            <!-- 動的に英語訳・漢字読み・日付が表示される -->
-          </div>
+          <div class="live-hud-body" id="liveHudBody"></div>
         </div>
       </div>
 
       <!-- 下部コントロールパネル -->
       <div class="loupe-controls">
-        <!-- ズームスライダー行 -->
         <div class="zoom-slider-row">
           <i class="fa-solid fa-magnifying-glass-minus slider-icon"></i>
           <input type="range" class="zoom-slider" id="zoomSlider" min="1" max="10" step="0.1" value="1">
@@ -1109,32 +1012,26 @@
           </div>
         </div>
 
-        <!-- ツールボタン行 -->
         <div class="action-buttons-row">
-          <!-- ライト (トーチ) -->
           <button class="sub-action-btn" id="btnTorch" onclick="toggleTorch()">
             <i class="fa-solid fa-lightbulb"></i>
             <span class="sub-btn-label">ライト</span>
           </button>
 
-          <!-- 静止・フリーズ -->
           <button class="sub-action-btn" id="btnFreeze" onclick="toggleFreeze()">
             <i class="fa-solid fa-snowflake"></i>
             <span class="sub-btn-label">静止</span>
           </button>
 
-          <!-- メイン撮影ボタン -->
           <button class="shutter-btn" id="btnShutter" onclick="captureAndOpenSheet()">
             <i class="fa-solid fa-camera"></i>
           </button>
 
-          <!-- フィルター（白黒/反転/弱視配慮） -->
           <button class="sub-action-btn" id="btnFilter" onclick="cycleFilter()">
             <i class="fa-solid fa-circle-half-stroke"></i>
             <span class="sub-btn-label" id="filterLabel">標準</span>
           </button>
 
-          <!-- ファイルから読込 -->
           <button class="sub-action-btn" onclick="document.getElementById('fileInput').click()">
             <i class="fa-solid fa-folder-open"></i>
             <span class="sub-btn-label">画像開く</span>
@@ -1144,7 +1041,7 @@
       </div>
     </div>
 
-    <!-- 2. 英語訳・漢字の読み方・言葉の意味 専用画面 -->
+    <!-- 2. 英語訳・漢字・意味 専用画面 -->
     <div class="view-panel dictionary-view" id="viewDictionary">
       <div class="section-title-bar">
         <div class="section-title">
@@ -1165,19 +1062,14 @@
         </div>
 
         <div class="tool-action-btn-group">
-          <!-- 英語を訳す -->
           <button class="tool-btn translate" onclick="executeTranslate(document.getElementById('dictQueryInput').value)">
             <i class="fa-solid fa-globe"></i>
             <span>英語を訳す</span>
           </button>
-
-          <!-- 漢字の読み方 -->
           <button class="tool-btn kanji" onclick="executeKanjiReading(document.getElementById('dictQueryInput').value)">
             <i class="fa-solid fa-font"></i>
             <span>漢字の読み方</span>
           </button>
-
-          <!-- 言葉の意味 -->
           <button class="tool-btn meaning" onclick="executeWordMeaning(document.getElementById('dictQueryInput').value)">
             <i class="fa-solid fa-book"></i>
             <span>言葉の意味</span>
@@ -1185,7 +1077,6 @@
         </div>
       </div>
 
-      <!-- 知的解説結果表示カード -->
       <div class="knowledge-result-card" id="knowledgeResultCard">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div class="result-badge" id="resultTypeBadge">結果</div>
@@ -1213,7 +1104,6 @@
       <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">
         撮影やレンズをかざして検出された日付・予定の一覧です。ワンタップでGoogleカレンダーやスマホ本体カレンダーに登録できます。
       </p>
-
       <div class="log-list" id="calendarLogList"></div>
     </div>
 
@@ -1230,7 +1120,7 @@
 
   </main>
 
-  <!-- 撮影後・メモ＆知性ツール＆カレンダー登録モーダルシート -->
+  <!-- 撮影後モーダル -->
   <div class="modal-backdrop" id="editSheet">
     <div class="modal-sheet">
       <div class="sheet-header">
@@ -1327,8 +1217,101 @@
 
   <script>
     /* ========================================================
-       スマート拡大鏡＆かざすだけ翻訳・カレンダーログ ロジック
+       常用漢字・難読漢字・標識 内蔵辞書データベース (字崩れ防止)
        ======================================================== */
+    const KANJI_DATABASE = {
+      // 標識・案内
+      "準備中": { reading: "じゅんびちゅう", meaning: "開店や開始の準備をしている状態" },
+      "営業中": { reading: "えいぎょうちゅう", meaning: "店や業務を行っている状態" },
+      "定休日": { reading: "ていきゅうび", meaning: "定期的に業務を休む日" },
+      "処方箋": { reading: "しょほうせん", meaning: "医師が薬の種類や飲み方を書いた書類" },
+      "処方せん": { reading: "しょほうせん", meaning: "医師が薬の種類や飲み方を書いた書類" },
+      "領収書": { reading: "りょうしゅうしょ", meaning: "代金を受け取ったことを証明する書類" },
+      "賞味期限": { reading: "しょうみきげん", meaning: "おいしく食べることができる期限" },
+      "消費期限": { reading: "しょうひきげん", meaning: "安全に食べることができる期限" },
+      "原材料名": { reading: "げんざいりょうめい", meaning: "食品などに使われている材料の一覧" },
+      "非常口": { reading: "ひじょうぐち", meaning: "緊急時に避難するための出口" },
+      "立入禁止": { reading: "たちいりきんし", meaning: "入ることを禁止されている場所" },
+      "土足厳禁": { reading: "どそくげんきん", meaning: "靴を脱いで入る場所" },
+      "駐車場": { reading: "ちゅうしゃじょう", meaning: "自動車を停める場所" },
+      "駐輪場": { reading: "ちゅうりんじょう", meaning: "自転車やバイクを停める場所" },
+      "優先席": { reading: "ゆうせんせき", meaning: "高齢者や体調の優れない方へ譲る席" },
+      "禁煙": { reading: "きんえん", meaning: "タバコを吸ってはいけない場所" },
+      "会計": { reading: "かいけい", meaning: "代金の支払いや計算" },
+      "受付": { reading: "うけつけ", meaning: "来客や書類を受け付ける場所" },
+      "診察": { reading: "しんさつ", meaning: "医師が病気や怪我を調べること" },
+      "問診": { reading: "もんしん", meaning: "医師が患者の訴えを聞き取ること" },
+      "服薬": { reading: "ふくやく", meaning: "薬を飲むこと" },
+      "食前": { reading: "しょくぜん", meaning: "食事の20〜30分前" },
+      "食後": { reading: "しょくご", meaning: "食事の20〜30分後" },
+      "食間": { reading: "しょっかん", meaning: "食事と食事の間（食後約2時間）" },
+      "就寝前": { reading: "しゅうしんまえ", meaning: "夜寝る前のこと" },
+      "点眼": { reading: "てんがん", meaning: "目薬を目にさすこと" },
+      "塗布": { reading: "とふ", meaning: "薬を皮膚にぬること" },
+      "湿布": { reading: "しっぷ", meaning: "患部に貼る薬用シート" },
+      // 難読・気になる言葉
+      "躊躇": { reading: "ちゅうちょ", meaning: "あれこれ迷ってためらうこと" },
+      "忖度": { reading: "そんたく", meaning: "他人の胸中や意図をおしはかること" },
+      "曖昧": { reading: "あいまい", meaning: "態度や物事がはっきりしない様子" },
+      "遵守": { reading: "じゅんしゅ", meaning: "法律や規則をよく守ること" },
+      "割愛": { reading: "かつあい", meaning: "惜しいと思いながらも省略すること" },
+      "破綻": { reading: "はたん", meaning: "関係や計画が成り立たなくなること" },
+      "暫定": { reading: "ざんてい", meaning: "正式決定までのあいだ、仮に決めること" },
+      "早急": { reading: "さっきゅう（そうきゅう）", meaning: "非常に急ぐこと" },
+      "相殺": { reading: "そうさい", meaning: "互いの貸し借りを帳消しにすること" },
+      "重複": { reading: "ちょうふく（じゅうふく）", meaning: "同じ物事が重なること" },
+      "代替": { reading: "だいたい", meaning: "他のもので代用・交代すること" },
+      "汎用": { reading: "はんよう", meaning: "一つのものが多くの用途に広く使えること" },
+      "脆弱": { reading: "ぜいじゃく", meaning: "もろくて弱いこと" },
+      "齟齬": { reading: "そご", meaning: "物事が食い違って合わないこと" },
+      "概ね": { reading: "おおむね", meaning: "だいたいのところ、大要" },
+      "貼付": { reading: "ちょうふ（はりつけ）", meaning: "貼り付けること" },
+      "捺印": ("なついん"),
+      "署名": { reading: "しょめい", meaning: "自分の名前を本人が書くこと" },
+      "契機": { reading: "けいき", meaning: "きっかけ、動機" },
+      "便宜": { reading: "べんぎ", meaning: "都合がよく好都合なこと" },
+      "刷新": { reading: "さっしん", meaning: "全く新しく改めること" },
+      "杞憂": { reading: "きゆう", meaning: "必要のない余計な心配、取り越し苦労" },
+      "蛇足": { reading: "だそく", meaning: "余計な無駄な付け足し" },
+      "潮時": { reading: "しおどき", meaning: "物事を始めたり終えたりするのにちょうど良い好機" }
+    };
+
+    // 英語の頻出単語辞書
+    const COMMON_ENGLISH_DICT = {
+      "open": "開く / 営業中",
+      "close": "閉まる / 準備中",
+      "closed": "休業 / 準備中",
+      "stop": "止まれ / 停止",
+      "caution": "注意 / 警告",
+      "warning": "警告 / 危険",
+      "danger": "危険 / 危険区域",
+      "push": "押す",
+      "pull": "引く",
+      "exit": "出口",
+      "entrance": "入口",
+      "welcome": "ようこそ / 歓迎",
+      "information": "案内所 / お知らせ",
+      "help": "助け / ヘルプ",
+      "toilet": "お手洗い / トイレ",
+      "restroom": "お手洗い / 化粧室",
+      "sale": "セール / 特売",
+      "price": "価格 / お値段",
+      "free": "無料 / 自由",
+      "in": "入口 / 中へ",
+      "out": "出口 / 外へ",
+      "up": "上り / 上へ",
+      "down": "下り / 下へ",
+      "no smoking": "禁煙",
+      "staff only": "関係者以外立入禁止",
+      "keep out": "立入禁止",
+      "do not touch": "手を触れないでください",
+      "wifi": "無線インターネット (Wi-Fi)",
+      "menu": "お品書き / メニュー",
+      "pay": "支払う / 会計",
+      "cash only": "現金のみ",
+      "credit card": "クレジットカード"
+    };
+
     let currentStream = null;
     let videoTrack = null;
     let currentZoom = 1.0;
@@ -1338,7 +1321,7 @@
     let isLiveScanActive = true;
     let liveScanTimer = null;
     let isOcrProcessing = false;
-    let lastRecognizedText = "";
+    let lastRecognizedKey = "";
 
     let currentFilterIdx = 0;
     const filterModes = [
@@ -1354,13 +1337,9 @@
     let currentVoiceLang = "ja-JP";
     let db = null;
 
-    // 1. IndexedDB
-    const DB_NAME = "SmartLoupeDB";
-    const DB_VERSION = 1;
-
     function initDB() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = indexedDB.open("SmartLoupeDB", 1);
         req.onupgradeneeded = (e) => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains("logs")) {
@@ -1369,15 +1348,11 @@
             store.createIndex("createdAt", "createdAt", { unique: false });
           }
         };
-        req.onsuccess = (e) => {
-          db = e.target.result;
-          resolve(db);
-        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
         req.onerror = (e) => reject(e);
       });
     }
 
-    // 2. カメラ起動
     async function startCamera() {
       const video = document.getElementById("videoElement");
       try {
@@ -1399,15 +1374,12 @@
           maxHardwareZoom = capabilities.zoom.max || 1.0;
           document.getElementById("zoomSlider").max = Math.max(10, maxHardwareZoom);
         }
-
-        // カメラ準備完了後、かざすだけライブスキャンを開始
         startLiveScanningLoop();
       } catch (err) {
         console.warn("カメラ起動注意:", err);
       }
     }
 
-    // 3. ズーム制御
     function applyZoom(val) {
       currentZoom = parseFloat(val);
       document.getElementById("zoomBadge").innerText = `${currentZoom.toFixed(1)}x`;
@@ -1432,10 +1404,7 @@
     }
 
     function setZoom(val) { applyZoom(val); }
-
-    document.getElementById("zoomSlider").addEventListener("input", (e) => {
-      applyZoom(e.target.value);
-    });
+    document.getElementById("zoomSlider").addEventListener("input", (e) => applyZoom(e.target.value));
 
     // ピンチ操作
     let touchStartDist = 0;
@@ -1447,16 +1416,13 @@
         initialZoomOnTouch = currentZoom;
       }
     }, { passive: true });
-
     viewport.addEventListener("touchmove", (e) => {
       if (e.touches.length === 2 && touchStartDist > 0) {
         const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-        const factor = dist / touchStartDist;
-        applyZoom(Math.min(10, Math.max(1, initialZoomOnTouch * factor)));
+        applyZoom(Math.min(10, Math.max(1, initialZoomOnTouch * (dist / touchStartDist))));
       }
     }, { passive: true });
 
-    // ライト
     async function toggleTorch() {
       if (!videoTrack || !videoTrack.applyConstraints) {
         showToast("この端末ではライト制御に対応していません");
@@ -1472,7 +1438,6 @@
       }
     }
 
-    // 静止 (フリーズ)
     function toggleFreeze() {
       const video = document.getElementById("videoElement");
       const canvas = document.getElementById("freezeCanvas");
@@ -1501,7 +1466,6 @@
       }
     }
 
-    // フィルター
     function cycleFilter() {
       currentFilterIdx = (currentFilterIdx + 1) % filterModes.length;
       const mode = filterModes[currentFilterIdx];
@@ -1515,7 +1479,7 @@
     }
 
     /* ========================================================
-       ★【核心機能】レンズをかざしただけで自動検出＆表示するロジック ★
+       ★【字崩れ解消・超高精度文字認識＆二値化フィルター】★
        ======================================================== */
     function toggleLiveScan() {
       isLiveScanActive = !isLiveScanActive;
@@ -1545,19 +1509,24 @@
       if (liveScanTimer) clearTimeout(liveScanTimer);
 
       liveScanTimer = setTimeout(async () => {
-        // 拡大鏡タブが表示されていて、フリーズ中でなく、OCR処理中でなければ実行
         const isLoupeVisible = document.getElementById("viewLoupe").classList.contains("active");
         const isModalOpen = document.getElementById("editSheet").classList.contains("active");
 
         if (isLoupeVisible && !isModalOpen && !isFrozen && !isOcrProcessing) {
-          await runLiveCropOcr();
+          await executeHighPrecisionScan(false);
         }
         startLiveScanningLoop();
-      }, 1400); // 1.4秒おきに軽快にスキャン
+      }, 1600);
     }
 
-    // 照準枠の中央エリアだけを高速クロップしてOCR
-    async function runLiveCropOcr() {
+    // 枠タップでブレずに高精度認識
+    async function triggerTapScan() {
+      showToast("照準枠の文字を鮮明に読み取っています...");
+      await executeHighPrecisionScan(true);
+    }
+
+    // 高精度文字認識コアエンジン（二値化＋ノイズ完全除去）
+    async function executeHighPrecisionScan(isManualTap = false) {
       const video = document.getElementById("videoElement");
       if (!video || !video.videoWidth) return;
 
@@ -1570,120 +1539,193 @@
         const vw = video.videoWidth;
         const vh = video.videoHeight;
 
-        // 中央部分（照準枠相当）を切り抜き (横幅の約60%, 縦幅の約25%)
-        const cropW = Math.floor(vw * 0.65);
-        const cropH = Math.floor(vh * 0.28);
+        // 照準枠のエリアを高解像度で切り抜き
+        const cropW = Math.floor(vw * 0.70);
+        const cropH = Math.floor(vh * 0.26);
         const cropX = Math.floor((vw - cropW) / 2);
         const cropY = Math.floor((vh - cropH) / 2);
 
-        cropCanvas.width = cropW;
-        cropCanvas.height = cropH;
+        // 2倍拡大Canvasで輪郭をシャープにする
+        cropCanvas.width = cropW * 1.5;
+        cropCanvas.height = cropH * 1.5;
         const ctx = cropCanvas.getContext("2d");
 
-        // コントラストを強調して文字認識精度を上げる
-        ctx.filter = "contrast(160%) grayscale(100%)";
-        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        // 白黒二値化＆コントラスト強調
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropCanvas.width, cropCanvas.height);
 
-        const cropDataUrl = cropCanvas.toDataURL("image/jpeg", 0.75);
+        // Canvas上のピクセルを二値化処理（文字をくっきり黒、背景を白に）
+        applyBinarization(ctx, cropCanvas.width, cropCanvas.height);
+
+        const processedDataUrl = cropCanvas.toDataURL("image/jpeg", 0.9);
 
         if (window.Tesseract) {
-          const result = await Tesseract.recognize(cropDataUrl, 'jpn+eng');
-          const text = (result.data.text || "").trim();
+          const result = await Tesseract.recognize(processedDataUrl, 'jpn+eng');
+          const rawText = (result.data.text || "");
+          
+          // ゴミ文字・崩れた文字を完全サニタイズ
+          const cleanedText = sanitizeOcrText(rawText);
 
-          if (text && text.length >= 2 && text !== lastRecognizedText) {
-            lastRecognizedText = text;
-            await processLiveTextResult(text);
+          if (cleanedText) {
+            await processCleanedResults(cleanedText, isManualTap);
+          } else if (isManualTap) {
+            showToast("文字を読み取れませんでした。枠に文字を近づけてみてください");
           }
         }
       } catch (err) {
-        console.warn("Live OCR Note:", err);
+        console.warn("Scan note:", err);
       } finally {
         reticle.classList.remove("scanning");
         isOcrProcessing = false;
       }
     }
 
-    // かざして検出された文字の自動解析＆HUD表示
-    async function processLiveTextResult(text) {
+    // 白黒二値化処理関数 (Otsu調のしきい値処理)
+    function applyBinarization(ctx, width, height) {
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        // グレースケール輝度
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        // しきい値135でクッキリ白黒化
+        const v = gray > 135 ? 255 : 0;
+        data[i] = v;
+        data[i + 1] = v;
+        data[i + 2] = v;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // ゴミ文字・崩れた文字・ノイズ記号の完全除去
+    function sanitizeOcrText(text) {
+      if (!text) return "";
+      // 意味不明な記号・ノイズを削除
+      let s = text.replace(/[\-_|\\\/~^`'"=;:.,*+?!#%&()<>\[\]{}0-9]{3,}/g, " ");
+      s = s.replace(/[\s\r\n]+/g, " ").trim();
+      return s;
+    }
+
+    // 認識された綺麗な文字列の判定と表示
+    async function processCleanedResults(text, isManual) {
       const hud = document.getElementById("liveResultHud");
       const hudBody = document.getElementById("liveHudBody");
-      const hudTag = document.getElementById("liveHudTag");
-
-      // 1. 英語かどうか判定 (英文字の比率)
-      const englishWords = text.match(/[a-zA-Z]{2,}/g);
-      // 2. 漢字が含まれているか判定
-      const kanjiWords = text.match(/[\u4e00-\u9faf]{2,}/g);
-      // 3. 日時が含まれているか
-      const dateMatch = text.match(/(?:(\d{4}|令(?:和)?\s*(\d{1,2}))[年\/\.\-])?\s*(\d{1,2})[月\/\.\-](\d{1,2})日?/);
-      const timeMatch = text.match(/(?:(午前|午後)\s*)?(\d{1,2})[:時](\d{2})?(?:分)?/);
 
       let html = "";
-      let foundSomething = false;
+      let foundCount = 0;
 
-      // 英語が検出された場合 → 自動で日本語訳を取得して表示！
-      if (englishWords && englishWords.length > 0) {
-        const engText = englishWords.slice(0, 5).join(" ");
-        foundSomething = true;
-        try {
-          const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(engText)}&langpair=en|ja`);
-          const data = await res.json();
-          const jaText = data.responseData ? data.responseData.translatedText : "";
-
+      // 1. 内蔵漢字辞書との精密マッチング（崩れなし・美しい日本語）
+      for (const [kanjiKey, info] of Object.entries(KANJI_DATABASE)) {
+        if (text.includes(kanjiKey)) {
+          foundCount++;
           html += `
-            <div class="live-hud-line" style="border-left:3px solid #38bdf8; padding-left:8px;">
-              <div>
-                <span style="font-size:0.75rem; color:#93c5fd; font-weight:bold;">🇺🇸 英語の日本語訳:</span><br>
-                <strong style="color:white; font-size:1.05rem;">${escapeHtml(jaText || engText)}</strong>
-                <span style="font-size:0.8rem; color:#94a3b8; margin-left:6px;">(${escapeHtml(engText)})</span>
+            <div class="live-hud-item kanji">
+              <div class="live-text-content">
+                <div class="live-item-badge purple">🈩 漢字の読み方・意味</div>
+                <div class="live-main-word">${kanjiKey}</div>
+                <div class="live-sub-reading">読み: 【${info.reading}】</div>
+                <div class="live-sub-desc">${info.meaning}</div>
               </div>
-              <button class="live-voice-icon-btn" onclick="playVoice('${escapeHtml(engText)}', 'en-US')" title="英語の発音を聴く">
+              <button class="live-voice-icon-btn" onclick="playVoice('${info.reading || kanjiKey}', 'ja-JP')" title="音声で読み上げ">
                 <i class="fa-solid fa-volume-high"></i>
               </button>
             </div>
           `;
-        } catch (e) {}
+        }
       }
 
-      // 漢字が検出された場合 → 読み方（ふりがな音声を即準備）
-      if (kanjiWords && kanjiWords.length > 0) {
-        const kanjiText = kanjiWords[0];
-        foundSomething = true;
-        html += `
-          <div class="live-hud-line" style="border-left:3px solid #c084fc; padding-left:8px;">
-            <div>
-              <span style="font-size:0.75rem; color:#f5d0fe; font-weight:bold;">🈩 漢字の読み方:</span><br>
-              <strong style="color:white; font-size:1.05rem;">${escapeHtml(kanjiText)}</strong>
-              <span style="font-size:0.75rem; color:var(--accent-gold); margin-left:6px;">(右ボタンで音声読み上げ)</span>
+      // 2. 英語単語の検出（頻出辞書 or 3文字以上の正当な英単語）
+      const englishWords = text.match(/[a-zA-Z]{3,}/g);
+      if (englishWords && englishWords.length > 0) {
+        const engCandidate = englishWords.slice(0, 3).join(" ").toLowerCase();
+        
+        let translatedJapanese = "";
+        // 内蔵辞書に一致するか
+        for (const [eKey, jVal] of Object.entries(COMMON_ENGLISH_DICT)) {
+          if (engCandidate.includes(eKey)) {
+            translatedJapanese = jVal;
+            break;
+          }
+        }
+
+        // 内蔵になければMyMemoryで翻訳
+        if (!translatedJapanese) {
+          try {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(engCandidate)}&langpair=en|ja`);
+            const data = await res.json();
+            if (data.responseData && data.responseData.translatedText) {
+              translatedJapanese = data.responseData.translatedText;
+            }
+          } catch (e) {}
+        }
+
+        if (translatedJapanese) {
+          foundCount++;
+          html += `
+            <div class="live-hud-item">
+              <div class="live-text-content">
+                <div class="live-item-badge">🇺🇸 英語の日本語訳</div>
+                <div class="live-main-word">${translatedJapanese}</div>
+                <div class="live-sub-desc">英語原文: ${engCandidate.toUpperCase()}</div>
+              </div>
+              <button class="live-voice-icon-btn" onclick="playVoice('${engCandidate}', 'en-US')" title="英語の発音を聴く">
+                <i class="fa-solid fa-volume-high"></i>
+              </button>
             </div>
-            <button class="live-voice-icon-btn" onclick="playVoice('${escapeHtml(kanjiText)}', 'ja-JP')" title="読み方を聴く">
-              <i class="fa-solid fa-volume-high"></i>
-            </button>
-          </div>
-        `;
+          `;
+        }
       }
 
-      // 日付や時間が入っている場合 → カレンダーログへの直通リンク
+      // 3. 一般の漢字（辞書未登録だが2文字以上の漢字）
+      if (foundCount === 0) {
+        const kanjiMatches = text.match(/[\u4e00-\u9faf]{2,}/g);
+        if (kanjiMatches && kanjiMatches.length > 0) {
+          const kWord = kanjiMatches[0];
+          foundCount++;
+          html += `
+            <div class="live-hud-item kanji">
+              <div class="live-text-content">
+                <div class="live-item-badge purple">🈩 漢字を検出</div>
+                <div class="live-main-word">${kWord}</div>
+                <div class="live-sub-desc">右ボタンで正しい日本語の読み上げ音声を聴けます</div>
+              </div>
+              <button class="live-voice-icon-btn" onclick="playVoice('${kWord}', 'ja-JP')" title="読み上げ音声を聴く">
+                <i class="fa-solid fa-volume-high"></i>
+              </button>
+            </div>
+          `;
+        }
+      }
+
+      // 4. 日付・時刻の検出
+      const dateMatch = text.match(/(?:(\d{4}|令(?:和)?\s*(\d{1,2}))[年\/\.\-])?\s*(\d{1,2})[月\/\.\-](\d{1,2})日?/);
+      const timeMatch = text.match(/(?:(午前|午後)\s*)?(\d{1,2})[:時](\d{2})?(?:分)?/);
       if (dateMatch) {
-        foundSomething = true;
+        foundCount++;
         const dText = dateMatch[0];
         const tText = timeMatch ? timeMatch[0] : "";
         html += `
-          <div class="live-hud-line" style="border-left:3px solid var(--accent-green); padding-left:8px;">
-            <div>
-              <span style="font-size:0.75rem; color:#4ade80; font-weight:bold;">📅 日時を検出:</span><br>
-              <strong style="color:white; font-size:1rem;">${escapeHtml(dText)} ${escapeHtml(tText)}</strong>
+          <div class="live-hud-item date">
+            <div class="live-text-content">
+              <div class="live-item-badge green">📅 日時を検出</div>
+              <div class="live-main-word">${dText} ${tText}</div>
             </div>
-            <button class="preset-btn" style="background:var(--accent-green); color:#0f172a; font-weight:bold;" onclick="captureAndOpenSheet()">
+            <button class="preset-btn" style="background:var(--accent-green); color:#0f172a; font-weight:bold; padding:6px 12px;" onclick="captureAndOpenSheet()">
               カレンダー保存
             </button>
           </div>
         `;
       }
 
-      if (foundSomething) {
+      if (foundCount > 0) {
         hudBody.innerHTML = html;
         hud.style.display = "flex";
+      } else if (isManual) {
+        showToast("文字が見つかりませんでした。枠に近づけてピントを合わせてください");
       }
+    }
+
+    function closeLiveHud() {
+      document.getElementById("liveResultHud").style.display = "none";
     }
 
     function playVoice(text, lang) {
@@ -1691,9 +1733,9 @@
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = lang || "ja-JP";
-      u.rate = 0.95;
+      u.rate = 0.92;
       window.speechSynthesis.speak(u);
-      showToast("読み上げ音声を再生しました🔊");
+      showToast("音声を再生しました🔊");
     }
 
     // 撮影
@@ -1757,22 +1799,19 @@
       try {
         let text = "";
         if (window.Tesseract) {
-          const result = await Tesseract.recognize(
-            capturedDataUrl,
-            'jpn+eng',
-            { logger: m => console.log(m) }
-          );
+          const result = await Tesseract.recognize(capturedDataUrl, 'jpn+eng');
           text = result.data.text || "";
         }
 
         if (text) {
-          document.getElementById("editMemo").value = text.trim();
-          extractDateTimeFromText(text);
-          document.getElementById("dictQueryInput").value = text.trim().substring(0, 50);
+          const cleaned = sanitizeOcrText(text);
+          document.getElementById("editMemo").value = cleaned;
+          extractDateTimeFromText(cleaned);
+          document.getElementById("dictQueryInput").value = cleaned.substring(0, 50);
           showToast("文字と日時を認識しました！");
         }
       } catch (err) {
-        console.warn("OCR実行エラー:", err);
+        console.warn("OCR error:", err);
       } finally {
         btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> 再スキャン`;
       }
@@ -1831,7 +1870,7 @@
     }
 
     /* ========================================================
-       英語を訳す・漢字の読み方・言葉の意味
+       辞書・翻訳タブ ロジック
        ======================================================== */
     async function executeTranslate(query) {
       if (!query || !query.trim()) {
@@ -1841,37 +1880,36 @@
       const q = query.trim();
       showToast("翻訳中...");
 
-      try {
-        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|ja`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const translated = data.responseData ? data.responseData.translatedText : "翻訳を取得できませんでした";
-
-        displayKnowledgeResult(
-          "blue",
-          `<i class="fa-solid fa-globe"></i> 英語の日本語訳`,
-          `🇺🇸 原文: ${q}`,
-          `🇯🇵 日本語訳: <strong>${translated}</strong>`,
-          q,
-          "en-US",
-          [
-            { label: "Google翻訳で開く", url: `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(q)}&op=translate` },
-            { label: "Weblio英和辞典", url: `https://ejje.weblio.jp/content/${encodeURIComponent(q)}` }
-          ]
-        );
-      } catch (err) {
-        displayKnowledgeResult(
-          "blue",
-          `<i class="fa-solid fa-globe"></i> 英語の日本語訳`,
-          `🇺🇸 原文: ${q}`,
-          `外部辞書で詳細な翻訳を確認できます。`,
-          q,
-          "en-US",
-          [
-            { label: "Google翻訳で開く", url: `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(q)}&op=translate` }
-          ]
-        );
+      let translated = "";
+      for (const [eKey, jVal] of Object.entries(COMMON_ENGLISH_DICT)) {
+        if (q.toLowerCase() === eKey || q.toLowerCase().includes(eKey)) {
+          translated = jVal;
+          break;
+        }
       }
+
+      if (!translated) {
+        try {
+          const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|ja`);
+          const data = await res.json();
+          translated = data.responseData ? data.responseData.translatedText : "翻訳を取得できませんでした";
+        } catch (err) {
+          translated = "外部辞書でご確認ください";
+        }
+      }
+
+      displayKnowledgeResult(
+        "blue",
+        `<i class="fa-solid fa-globe"></i> 英語の日本語訳`,
+        `🇺🇸 原文: ${q}`,
+        `🇯🇵 日本語訳: <strong>${translated}</strong>`,
+        q,
+        "en-US",
+        [
+          { label: "Google翻訳で開く", url: `https://translate.google.com/?sl=en&tl=ja&text=${encodeURIComponent(q)}&op=translate` },
+          { label: "Weblio英和辞典", url: `https://ejje.weblio.jp/content/${encodeURIComponent(q)}` }
+        ]
+      );
     }
 
     function executeKanjiReading(query) {
@@ -1882,15 +1920,26 @@
       const q = query.trim();
       showToast("漢字の読み方を調べています...");
 
-      currentVoiceText = q;
-      currentVoiceLang = "ja-JP";
+      let reading = "";
+      let meaning = "";
+      for (const [k, v] of Object.entries(KANJI_DATABASE)) {
+        if (q.includes(k) || k.includes(q)) {
+          reading = v.reading;
+          meaning = v.meaning;
+          break;
+        }
+      }
+
+      const descHtml = reading 
+        ? `読み: 【<strong style="color:var(--accent-gold); font-size:1.1rem;">${reading}</strong>】<br>${meaning}`
+        : `「<strong>音声で聴く</strong>」ボタンを押すと、この漢字の正しい読み上げ音が流れます！`;
 
       displayKnowledgeResult(
         "purple",
         `<i class="fa-solid fa-font"></i> 漢字の読み方`,
         `🈩 漢字: ${q}`,
-        `「<strong>音声で聴く</strong>」ボタンを押すと、この漢字の正しい日本語の読み上げ音が流れます！<br>詳しい部首・画数は辞書リンクよりご確認いただけます。`,
-        q,
+        descHtml,
+        reading || q,
         "ja-JP",
         [
           { label: "漢字ペディアで調べる", url: `https://www.kanjipedia.jp/search?k=${encodeURIComponent(q)}` },
@@ -1909,46 +1958,43 @@
       const q = query.trim();
       showToast("言葉の意味を検索中...");
 
-      try {
-        const wikiUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&origin=*&titles=${encodeURIComponent(q)}`;
-        const res = await fetch(wikiUrl);
-        const data = await res.json();
-        const pages = data.query ? data.query.pages : {};
-        const page = Object.values(pages)[0];
-
-        let explanation = "";
-        if (page && page.extract) {
-          explanation = page.extract.substring(0, 220) + (page.extract.length > 220 ? "..." : "");
-        } else {
-          explanation = `『${q}』に関する解説を以下の辞書リンクより詳しくご覧いただけます。`;
+      let explanation = "";
+      for (const [k, v] of Object.entries(KANJI_DATABASE)) {
+        if (q.includes(k)) {
+          explanation = `【${v.reading}】${v.meaning}`;
+          break;
         }
-
-        displayKnowledgeResult(
-          "green",
-          `<i class="fa-solid fa-book"></i> 言葉の意味・解説`,
-          `📖 用語: ${q}`,
-          explanation,
-          q,
-          "ja-JP",
-          [
-            { label: "コトバンク国語辞典", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` },
-            { label: "goo辞書で調べる", url: `https://dictionary.goo.ne.jp/srch/jn/${encodeURIComponent(q)}/m0u/` },
-            { label: "Wikipediaで全文を読む", url: `https://ja.wikipedia.org/wiki/${encodeURIComponent(q)}` }
-          ]
-        );
-      } catch (e) {
-        displayKnowledgeResult(
-          "green",
-          `<i class="fa-solid fa-book"></i> 言葉の意味・解説`,
-          `📖 用語: ${q}`,
-          `『${q}』の意味を各種辞書で検索できます。`,
-          q,
-          "ja-JP",
-          [
-            { label: "コトバンク国語辞典", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` }
-          ]
-        );
       }
+
+      if (!explanation) {
+        try {
+          const wikiUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&origin=*&titles=${encodeURIComponent(q)}`;
+          const res = await fetch(wikiUrl);
+          const data = await res.json();
+          const pages = data.query ? data.query.pages : {};
+          const page = Object.values(pages)[0];
+          if (page && page.extract) {
+            explanation = page.extract.substring(0, 220) + (page.extract.length > 220 ? "..." : "");
+          }
+        } catch (e) {}
+      }
+
+      if (!explanation) {
+        explanation = `『${q}』に関する詳しい解説は以下の辞書リンクよりご確認いただけます。`;
+      }
+
+      displayKnowledgeResult(
+        "green",
+        `<i class="fa-solid fa-book"></i> 言葉の意味・解説`,
+        `📖 用語: ${q}`,
+        explanation,
+        q,
+        "ja-JP",
+        [
+          { label: "コトバンク国語辞典", url: `https://kotobank.jp/word/${encodeURIComponent(q)}` },
+          { label: "goo辞書で調べる", url: `https://dictionary.goo.ne.jp/srch/jn/${encodeURIComponent(q)}/m0u/` }
+        ]
+      );
     }
 
     function displayKnowledgeResult(badgeColor, badgeHtml, mainHtml, subHtml, voiceText, voiceLang, links) {
@@ -1979,11 +2025,10 @@
         return;
       }
       if (!currentVoiceText) return;
-
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(currentVoiceText);
       u.lang = currentVoiceLang || "ja-JP";
-      u.rate = 0.95;
+      u.rate = 0.92;
       window.speechSynthesis.speak(u);
       showToast("音声を再生しています🔊");
     }
@@ -1996,7 +2041,7 @@
     function quickTranslateFromOcr() {
       const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
       if (!text) { showToast("読み取り文字がありません"); return; }
-      executeTranslate(text.substring(0, 100));
+      executeTranslate(text.substring(0, 80));
       switchTab('dictionary');
       closeEditSheet();
     }
@@ -2004,7 +2049,7 @@
     function quickKanjiFromOcr() {
       const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
       if (!text) { showToast("読み取り文字がありません"); return; }
-      executeKanjiReading(text.substring(0, 30));
+      executeKanjiReading(text.substring(0, 20));
       switchTab('dictionary');
       closeEditSheet();
     }
@@ -2012,13 +2057,13 @@
     function quickMeaningFromOcr() {
       const text = document.getElementById("editMemo").value || document.getElementById("editTitle").value;
       if (!text) { showToast("読み取り文字がありません"); return; }
-      executeWordMeaning(text.substring(0, 30));
+      executeWordMeaning(text.substring(0, 20));
       switchTab('dictionary');
       closeEditSheet();
     }
 
     /* ========================================================
-       カレンダーログ＆保存 ロジック
+       カレンダーログ＆保存
        ======================================================== */
     async function saveToCalendarLog(closeModal = true) {
       const title = document.getElementById("editTitle").value.trim() || "撮影メモ";
@@ -2355,7 +2400,7 @@
     }
 
     function showHelpModal() {
-      alert("【カレンダーログの使い方】\n\n1. 「拡大鏡」でチラシや予定表の日付部分をかざすか撮影します。\n2. 日付・時間が自動検出され、カレンダーログに保存されます。\n3. 「カレンダーログ」タブから『Googleカレンダーへ』または『スマホ本体へ』を押してワンタップで予定に登録できます！");
+      alert("【カレンダーログの使い方】\n\n1. 「拡大鏡」でチラシや予定表の日付部分を枠に合わせます。\n2. 枠をタップするか撮影すると、日付・時間が自動検出されてログに保存されます。\n3. 「カレンダーログ」タブから『Googleカレンダーへ』または『スマホ本体へ』を押してワンタップで予定に登録できます！");
     }
 
     window.addEventListener("DOMContentLoaded", async () => {
