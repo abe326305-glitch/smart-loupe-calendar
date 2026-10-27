@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>スマート拡大鏡 - 漢字読み＆英語訳</title>
-  <link rel="manifest" href="./manifest.json?v=4">
+  <link rel="manifest" href="./manifest.json?v=5">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4280,30 +4280,57 @@ const SINGLE_KANJI_DICT = {
     async function startCamera(isUserTap = false) {
       const video = document.getElementById("videoElement");
       const permBox = document.getElementById("cameraPermissionBox");
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        permBox.style.display = "flex";
+        return;
+      }
+
+      let stream = null;
+      // 段階的フォールバック（高解像度 -> 標準背面 -> 汎用カメラ）
       try {
-        const constraints = {
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
             width: { ideal: 1920 },
             height: { ideal: 1080 }
           }
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: { ideal: "environment" } }
+          });
+        } catch (err2) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+          } catch (err3) {
+            console.error("All camera attempts failed:", err3);
+            permBox.style.display = "flex";
+            return;
+          }
+        }
+      }
+
+      try {
         currentStream = stream;
         video.srcObject = stream;
         videoTrack = stream.getVideoTracks()[0];
         permBox.style.display = "none";
+
+        // iOS Safari対策: 明示的にplay()を呼ぶ
+        video.play().catch(() => {});
 
         const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
         if (capabilities.zoom) {
           maxHardwareZoom = capabilities.zoom.max || 1.0;
           document.getElementById("zoomSlider").max = Math.max(10, maxHardwareZoom);
         }
-        startLiveScanningLoop(); initOcrWorker();
-      } catch (err) {
-        console.warn("Camera init warning:", err);
-        permBox.style.display = "flex";
+        startLiveScanningLoop();
+        initOcrWorker();
+      } catch (e) {
+        console.warn("Camera setup warning:", e);
       }
     }
 
@@ -4743,8 +4770,7 @@ const SINGLE_KANJI_DICT = {
     /* ★ 文字判定・辞書照合・自動補正の統合エンジン ★ */
     async function findAndDisplayWordReading(rawText) {
       if (!rawText) return;
-      const cleanedJa = rawText.replace(/[a-zA-Z0-9\-_|\\/~^`'"=;:.,*+?!#%&()<>\[\]{} 	
-]/g, "");
+      const cleanedJa = rawText.replace(/[\x00-\x7F]/g, "").trim();
 
       // 1. 漢字優先または自動モードの場合
       if (currentOcrMode !== "english" && cleanedJa.length > 0) {
@@ -5246,7 +5272,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=4').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=5').catch(() => {});
       }
     });
   </script>
