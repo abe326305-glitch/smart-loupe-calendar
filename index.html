@@ -4727,9 +4727,8 @@ const SINGLE_KANJI_DICT = {
     /* 文字列中の漢字の並び（熟語）をオンライン辞書で調べる。
        熟語が見つかればその読み、無ければ1文字ずつの音訓読みを返す */
     async function lookupKanjiOnline(text) {
-      const runs = (text.match(KANJI_RUN_REGEX) || []).sort((a, b) => b.length - a.length);
-      if (runs.length === 0) return null;
-      const run = runs[0].slice(0, 8);
+      const run = pickCenterKanjiRun(text);
+      if (!run) return null;
       const chars = Array.from(new Set(Array.from(run)));
       const infos = {};
       await Promise.all(chars.map(async ch => { infos[ch] = await fetchOnlineKanji(ch); }));
@@ -4994,19 +4993,47 @@ const SINGLE_KANJI_DICT = {
         if (ink && start < 0) start = i;
         if (!ink && start >= 0) { bands.push([start, i - 1]); start = -1; }
       }
+      // 枠の端にかかって切れている帯（上下の別の行・隣の列のはみ出し）は、まとめずに別扱いにする
+      const touchesEdge = b => b[0] === 0 || b[1] === n - 1;
       // 近い帯（「三」「川」のように線の間に隙間がある字など）は同じ行・列としてまとめる
       const merged = [];
       for (const b of bands) {
         const last = merged[merged.length - 1];
-        if (last && b[0] - last[1] <= Math.max(mergeGap, (last[1] - last[0]) * 0.35)) last[1] = b[1];
+        if (last && !touchesEdge(last) && !touchesEdge(b) &&
+            b[0] - last[1] <= Math.max(mergeGap, (last[1] - last[0]) * 0.35)) last[1] = b[1];
         else merged.push(b.slice());
       }
       const found = merged.filter(b => b[1] - b[0] >= minSize);
       if (found.length === 0) return null;
+      // 端で切れていない帯があればそちらを優先（切れた行の破片をでたらめな字と誤認するのを防ぐ）
+      const whole = found.filter(b => !touchesEdge(b));
+      const pool = whole.length > 0 ? whole : found;
       const c = n / 2;
       const dist = b => (c < b[0] ? b[0] - c : (c > b[1] ? c - b[1] : 0));
-      found.sort((a, b) => dist(a) - dist(b));
-      return found[0];
+      pool.sort((a, b) => dist(a) - dist(b));
+      return pool[0];
+    }
+
+    /* 行（列）の中の文字のかたまりを並び方向に調べ、枠の端で切れた文字の破片を両端から取り除いた範囲 [開始, 終了] を返す */
+    function trimEdgeFragments(profile, mergeGap) {
+      const n = profile.length;
+      const segs = [];
+      let start = -1;
+      for (let i = 0; i <= n; i++) {
+        const ink = i < n && profile[i] > 0;
+        if (ink && start < 0) start = i;
+        if (!ink && start >= 0) {
+          const last = segs[segs.length - 1];
+          if (last && start - last[1] <= mergeGap) last[1] = i - 1;
+          else segs.push([start, i - 1]);
+          start = -1;
+        }
+      }
+      if (segs.length === 0) return null;
+      let a = 0, b = segs.length - 1;
+      if (b > a && segs[a][0] === 0) a++;
+      if (b > a && segs[b][1] === n - 1) b--;
+      return [segs[a][0], segs[b][1]];
     }
 
     /* ★ 二値化済み画像から「枠の中央に一番近い文字の行（縦書きなら列）」を切り出し、文字の大きさを指定サイズにそろえる ★ */
@@ -5039,14 +5066,14 @@ const SINGLE_KANJI_DICT = {
         if (!band) return null;
         const [y0, y1] = band;
 
-        // その行の左右の範囲
-        let x0 = w, x1 = -1;
+        // その行の左右の範囲（枠の左右の端で切れた文字の破片は除く）
+        const colInBand = new Uint32Array(w);
         for (let y = y0; y <= y1; y++) {
-          for (let x = 0; x < w; x++) {
-            if (isInk(x, y)) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
-          }
+          for (let x = 0; x < w; x++) if (isInk(x, y)) colInBand[x]++;
         }
-        if (x1 < x0) return null;
+        const span = trimEdgeFragments(colInBand, Math.max(2, Math.round((y1 - y0 + 1) * 0.12)));
+        if (!span) return null;
+        const [x0, x1] = span;
 
         const lineH = y1 - y0 + 1;
         const lineW = x1 - x0 + 1;
@@ -5084,7 +5111,10 @@ const SINGLE_KANJI_DICT = {
         if (last && (p[1] - last[0] + 1) <= colW * 1.2) last[1] = p[1];
         else chars.push(p.slice());
       }
-      const kept = chars.filter(c => c[1] - c[0] + 1 >= 2);
+      let kept = chars.filter(c => c[1] - c[0] + 1 >= 2);
+      // 枠の上下の端で切れた文字の破片は除く
+      if (kept.length > 1 && kept[0][0] === 0) kept = kept.slice(1);
+      if (kept.length > 1 && kept[kept.length - 1][1] === h - 1) kept = kept.slice(0, -1);
       if (kept.length === 0) return null;
 
       // 横一列に並べ直す（列の幅 → 指定の文字サイズ）
@@ -5100,6 +5130,31 @@ const SINGLE_KANJI_DICT = {
         octx.drawImage(canvas, x0, c[0], colW, c[1] - c[0] + 1, dx, dy, cellW, charHs[i]);
       });
       return out;
+    }
+
+    const MIN_WORD_CONFIDENCE = 65;
+    let lastScanRun = "";
+
+    function filterConfidentText(data) {
+      if (!data.words || data.words.length === 0) return (data.confidence >= 65) ? (data.text || "") : "";
+      let out = "";
+      for (const w of data.words) {
+        if (w.confidence < MIN_WORD_CONFIDENCE) out += " ";
+        else out += /^[\x00-\x7F]+$/.test(w.text) ? ` ${w.text} ` : w.text;
+      }
+      return out.trim();
+    }
+
+    /* 読み取った文字列の中で、真ん中に一番近い漢字のかたまり（熟語）を返す */
+    function pickCenterKanjiRun(text) {
+      const runs = [];
+      const re = new RegExp(KANJI_RUN_REGEX.source, "g");
+      let m;
+      while ((m = re.exec(text)) !== null) runs.push({ s: m[0], mid: m.index + m[0].length / 2 });
+      if (runs.length === 0) return null;
+      const center = text.length / 2;
+      runs.sort((a, b) => Math.abs(a.mid - center) - Math.abs(b.mid - center) || b.s.length - a.s.length);
+      return runs[0].s.slice(0, 8);
     }
 
     /* ★ 照準枠内だけの文字認識（超高速・フリーズ完全防止） ★ */
@@ -5163,11 +5218,22 @@ const SINGLE_KANJI_DICT = {
           const r = await recognizeWithTimeout(ocrCanvas.toDataURL("image/png"), 5000);
           if (r && (!res || r.confidence > res.confidence)) res = r;
         }
-        const text = res ? res.text : "";
+        // 1文字（単語）ごとの確信度が低いもの（模様・ブレ・切れた破片を無理に読んだもの）は捨てる。
+        // 捨てた所で区切って、前後の文字が1つの熟語としてつながらないようにする
+        const text = res ? filterConfidentText(res) : "";
 
-        // 信頼度が極端に低い結果（文字の無い模様・ブレをでたらめな漢字と誤認したもの）は無視
-        if (text && res.confidence >= 35) {
-          await findAndDisplayWordReading(text);
+        if (text) {
+          // 確信度がそれほど高くない漢字は、2回続けて同じ読み取りになった時だけ表示（一瞬の誤認を出さない）
+          const run = pickCenterKanjiRun(text);
+          const sure = res.confidence >= 85;
+          if (run && !sure && run !== lastScanRun) {
+            lastScanRun = run;
+          } else {
+            lastScanRun = run || "";
+            await findAndDisplayWordReading(text);
+          }
+        } else {
+          lastScanRun = "";
         }
       } catch (err) {
         console.warn("Scan error:", err);
@@ -5224,7 +5290,8 @@ const SINGLE_KANJI_DICT = {
     /* ★ 文字判定・辞書照合・自動補正の統合エンジン ★ */
     async function findAndDisplayWordReading(rawText) {
       if (!rawText) return;
-      const cleanedJa = rawText.replace(/[\x00-\x7F\u3000]/g, "").trim();
+      // \u82f1\u6570\u5b57\u306f\u9664\u304f\u304c\u3001\u78ba\u4fe1\u5ea6\u306e\u4f4e\u3044\u5b57\u3092\u6368\u3066\u305f\u533a\u5207\u308a\uff08\u7a7a\u767d\uff09\u306f\u6b8b\u3057\u3066\u5225\u3005\u306e\u8a9e\u304c\u3064\u306a\u304c\u3089\u306a\u3044\u3088\u3046\u306b\u3059\u308b
+      const cleanedJa = rawText.replace(/[\x00-\x1F\x21-\x7F]/g, "").replace(/[\s\u3000]+/g, " ").trim();
 
       // 1. 漢字優先または自動モードの場合
       if (currentOcrMode !== "english" && cleanedJa.length > 0) {
@@ -5268,11 +5335,10 @@ const SINGLE_KANJI_DICT = {
         }
 
         // (B2) 内蔵辞書にない難しい漢字・熟語はオンライン辞書で読みを調べる
-        const kanjiRuns = (cleanedJa.match(KANJI_RUN_REGEX) || []).sort((a, b) => b.length - a.length);
-        if (kanjiRuns.length > 0) {
-          const runKey = kanjiRuns[0].slice(0, 8);
+        const runKey = pickCenterKanjiRun(rawText);
+        if (runKey) {
           if (lastFoundWord === runKey) return;
-          const online = await lookupKanjiOnline(cleanedJa);
+          const online = await lookupKanjiOnline(runKey);
           if (online) {
             lastFoundWord = runKey;
             showPinpointWordPopup({
@@ -5784,7 +5850,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=9').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=10').catch(() => {});
       }
     });
   </script>
