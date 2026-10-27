@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smart-loupe-v2';
+const CACHE_NAME = 'smart-loupe-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -10,6 +10,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('古いキャッシュを削除:', key);
             return caches.delete(key);
           }
         })
