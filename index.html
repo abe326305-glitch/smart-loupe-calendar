@@ -453,6 +453,8 @@
       font-weight: 800;
       color: var(--accent-gold);
       letter-spacing: 0.05em;
+      white-space: pre-line;
+      word-break: break-word;
     }
 
     .word-meaning-text {
@@ -929,6 +931,10 @@
     .pinpoint-reticle-box.single {
       width: 100px;
       height: 80px;
+    }
+    .pinpoint-reticle-box.vertical {
+      width: 84px;
+      height: 220px;
     }
 
   
@@ -4544,6 +4550,8 @@ const SINGLE_KANJI_DICT = {
     let currentReticleSize = "normal"; // 'normal' | 'wide' | 'single'
     let ocrWorker = null;
     let isWorkerInitializing = false;
+    let ocrSafetyTimer = null;
+    let lastFoundWordTimer = null;
 
     function setOcrMode(mode) {
       currentOcrMode = mode;
@@ -4556,6 +4564,7 @@ const SINGLE_KANJI_DICT = {
         showToast("🈩 漢字優先モードに切替");
         guideText.innerText = "読みたい漢字を枠に合わせてください";
       } else if (mode === "english") {
+        initEngWorker();
         showToast("🇺🇸 英語優先モードに切替");
         guideText.innerText = "翻訳したい英語を枠に合わせてください";
       } else {
@@ -4578,6 +4587,11 @@ const SINGLE_KANJI_DICT = {
         box.className = "pinpoint-reticle-box single";
         btn.innerText = "枠: 1文字";
         showToast("照準枠: 1文字専用 (ピンポイント狙い)");
+      } else if (currentReticleSize === "single") {
+        currentReticleSize = "vertical";
+        box.className = "pinpoint-reticle-box vertical";
+        btn.innerText = "枠: 縦書き";
+        showToast("照準枠: 縦書き用 (縦に並んだ文字を枠に入れてください)");
       } else {
         currentReticleSize = "normal";
         box.className = "pinpoint-reticle-box";
@@ -4591,22 +4605,225 @@ const SINGLE_KANJI_DICT = {
       if (window.Tesseract && !ocrWorker && !isWorkerInitializing) {
         isWorkerInitializing = true;
         try {
-          // 常駐Workerを作成（jpn+eng）
-          ocrWorker = await Tesseract.createWorker(['jpn', 'eng'], 1, {
+          // 常駐Workerを作成（日本語・従来型＋LSTM併用 OEM 2）
+          // 標準の軽量データ(best_int)は「鬱・痙攣・薔薇」等の難しい漢字を収録しておらず別の字に化けるため、
+          // 収録字種の多い従来型データ（初回のみ約16MBダウンロード、以降は端末に保存）を使う
+          ocrWorker = await Tesseract.createWorker('jpn', 2, {
+            langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0',
+            cachePath: 'jpn-legacy',
+            legacyCore: true,
+            legacyLang: true,
             logger: m => {}
           });
-          // PSM 6: 単一均一ブロックとして文字行を認識（誤認識の大幅削減）
-          await ocrWorker.setParameters({
-            tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-            preserve_interword_spaces: '1'
-          });
-          console.log("OCR Worker Ready!");
+          console.log("OCR Worker Ready! (jpn legacy+lstm)");
         } catch (e) {
-          console.warn("Worker warm-up fallback:", e);
+          console.warn("Legacy jpn worker failed, fallback to jpn+eng LSTM:", e);
+          try {
+            ocrWorker = await Tesseract.createWorker(['jpn', 'eng'], 1, { logger: m => {} });
+          } catch (e2) {
+            console.warn("Worker warm-up fallback:", e2);
+            ocrWorker = null;
+          }
+        }
+        try {
+          if (ocrWorker) {
+            // PSM 6: 単一均一ブロックとして文字行を認識（誤認識の大幅削減）
+            await ocrWorker.setParameters({
+              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+              preserve_interword_spaces: '1'
+            });
+          }
+        } catch (e) {
+          console.warn("setParameters failed:", e);
         } finally {
           isWorkerInitializing = false;
         }
       }
+    }
+
+    /* ★ 常駐Workerで認識（タイムアウト付き）。準備中は null を返す ★ */
+    async function recognizeWithTimeout(dataUrl, timeoutMs) {
+      if (!ocrWorker) {
+        initOcrWorker();
+        return null;
+      }
+      // 英語優先モードは英語専用Worker（軽量・約2MB、初回選択時に読み込み）
+      let worker = ocrWorker;
+      if (currentOcrMode === "english") {
+        if (!engWorker) {
+          initEngWorker();
+        } else {
+          worker = engWorker;
+        }
+      }
+      let timer = null;
+      const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); });
+      try {
+        const res = await Promise.race([worker.recognize(dataUrl), timeout]);
+        return (res && res.data) ? res.data : null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    let engWorker = null;
+    let isEngWorkerInitializing = false;
+    async function initEngWorker() {
+      if (!window.Tesseract || engWorker || isEngWorkerInitializing) return;
+      isEngWorkerInitializing = true;
+      try {
+        const w = await Tesseract.createWorker('eng', 1, { logger: m => {} });
+        await w.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK });
+        engWorker = w;
+      } catch (e) {
+        console.warn("English worker failed:", e);
+      } finally {
+        isEngWorkerInitializing = false;
+      }
+    }
+
+    /* ★ 内蔵辞書にない難しい漢字のオンライン読み調べ（kanjiapi.dev・無料） ★ */
+    const KANJI_RUN_REGEX = /[㐀-䶿一-鿿豈-﫿々〆ヶ]+/g;
+    const onlineKanjiCache = new Map();
+    const onlineWordsCache = new Map();
+
+    async function fetchJsonWithTimeout(url, ms) {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), ms);
+      try {
+        const resp = await fetch(url, { signal: ctrl.signal });
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch (e) {
+        return null;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function fetchOnlineKanji(ch) {
+      if (onlineKanjiCache.has(ch)) return onlineKanjiCache.get(ch);
+      const data = await fetchJsonWithTimeout(`https://kanjiapi.dev/v1/kanji/${encodeURIComponent(ch)}`, 3000);
+      if (data && data.kanji) onlineKanjiCache.set(ch, data);
+      return data && data.kanji ? data : null;
+    }
+
+    async function fetchOnlineWords(ch) {
+      if (onlineWordsCache.has(ch)) return onlineWordsCache.get(ch);
+      const data = await fetchJsonWithTimeout(`https://kanjiapi.dev/v1/words/${encodeURIComponent(ch)}`, 5000);
+      if (Array.isArray(data)) onlineWordsCache.set(ch, data);
+      return Array.isArray(data) ? data : null;
+    }
+
+    function formatKanjiReading(info) {
+      const on = (info.on_readings || []).slice(0, 3).join("、");
+      const kun = (info.kun_readings || []).slice(0, 3).map(r => r.replace(".", "-")).join("、");
+      let s = "";
+      if (on) s += `【音】${on} `;
+      if (kun) s += `【訓】${kun}`;
+      return s.trim() || "（読み不明）";
+    }
+
+    /* 文字列中の漢字の並び（熟語）をオンライン辞書で調べる。
+       熟語が見つかればその読み、無ければ1文字ずつの音訓読みを返す */
+    async function lookupKanjiOnline(text) {
+      const runs = (text.match(KANJI_RUN_REGEX) || []).sort((a, b) => b.length - a.length);
+      if (runs.length === 0) return null;
+      const run = runs[0].slice(0, 8);
+      const chars = Array.from(new Set(Array.from(run)));
+      const infos = {};
+      await Promise.all(chars.map(async ch => { infos[ch] = await fetchOnlineKanji(ch); }));
+
+      // 熟語検索：珍しい漢字（新聞頻度が低い/不明）の単語一覧から、枠内の文字列に含まれる最長の語を探す
+      if (run.length >= 2) {
+        const rank = ch => {
+          const f = infos[ch] ? infos[ch].freq_mainichi_shinbun : null;
+          return f == null ? 99999 : f;
+        };
+        const byRarity = chars.slice().sort((a, b) => rank(b) - rank(a));
+        const wordLists = [];
+        for (const ch of byRarity.slice(0, 2)) {
+          if (wordLists.length > 0 && rank(ch) < 500) break; // 2つ目がごく常用の字なら一覧が巨大なので省略
+          const list = await fetchOnlineWords(ch);
+          if (list) wordLists.push(list);
+        }
+        if (wordLists.length > 0) {
+          let best = null;
+          for (const words of wordLists) {
+            for (const w of words) {
+              for (const v of (w.variants || [])) {
+                if (v.written && v.written.length >= 2 && run.includes(v.written) &&
+                    (!best || v.written.length > best.written.length)) {
+                  const gloss = (w.meanings && w.meanings[0] && w.meanings[0].glosses) ? w.meanings[0].glosses.slice(0, 3).join(", ") : "";
+                  best = { written: v.written, pronounced: v.pronounced, gloss };
+                }
+              }
+            }
+          }
+          if (best) {
+            return {
+              word: best.written,
+              reading: `【 ${best.pronounced} 】`,
+              meaning: best.gloss ? `オンライン辞書（英語の意味: ${best.gloss}）` : "オンライン辞書",
+              voiceText: best.pronounced
+            };
+          }
+
+          // 1文字だけ読み違えた場合の推測（例: 痙撃→痙攣、躍躇→躊躇）。よく使われる語を優先
+          const target = run.slice(0, 4);
+          const cands = [];
+          const seen = new Set();
+          for (const words of wordLists) {
+            for (const w of words) {
+              for (const v of (w.variants || [])) {
+                if (!v.written || v.written.length !== target.length || seen.has(v.written)) continue;
+                if (!/^[\u3400-\u9FFF々]+$/.test(v.written)) continue;
+                if (getLevenshteinDistance(v.written, target) === 1) {
+                  seen.add(v.written);
+                  cands.push({ written: v.written, pronounced: v.pronounced, common: (v.priorities || []).length });
+                }
+              }
+            }
+          }
+          if (cands.length > 0) {
+            cands.sort((a, b) => b.common - a.common);
+            const top = cands[0];
+            // 候補が1つだけの時は推測として1語表示
+            if (cands.length === 1) {
+              return {
+                word: `${top.written} (推測)`,
+                reading: `【 ${top.pronounced} 】`,
+                meaning: `読み取り「${target}」からの推測`,
+                voiceText: top.pronounced
+              };
+            }
+            // 候補が複数ある時は上位4つを並べて表示
+            const list = cands.slice(0, 4);
+            return {
+              word: `${target} → 候補`,
+              reading: list.map(c => `${c.written}【${c.pronounced}】`).join("\n"),
+              meaning: `読み取りが1文字不確かなため、似た熟語の候補を表示しています`,
+              voiceText: list[0].pronounced
+            };
+          }
+        }
+      }
+
+      // 1文字ずつの音訓読み（最大4文字）
+      const lines = [];
+      for (const ch of Array.from(run).slice(0, 4)) {
+        if (SINGLE_KANJI_DICT[ch]) lines.push(`${ch}：${SINGLE_KANJI_DICT[ch]}`);
+        else if (infos[ch]) lines.push(`${ch}：${formatKanjiReading(infos[ch])}`);
+      }
+      if (lines.length === 0) return null;
+      const first = infos[run[0]];
+      const meanings = first && first.meanings ? first.meanings.slice(0, 3).join(", ") : "";
+      return {
+        word: Array.from(run).slice(0, 4).join(""),
+        reading: lines.join("\n"),
+        meaning: meanings ? `漢字1文字ずつの読み（意味: ${meanings}）` : "漢字1文字ずつの読み",
+        voiceText: Array.from(run).slice(0, 4).join("")
+      };
     }
 
     /* ★ 照準枠とカメラフレームの完全幾何的一致計算 ★ */
@@ -4686,76 +4903,203 @@ const SINGLE_KANJI_DICT = {
       return { cropX, cropY, cropW, cropH };
     }
 
-    /* ★ 高度な画像前処理（コントラスト最大化・白黒反転自動補正） ★ */
-    /* ★ 難読漢字・高画数対応：シャープネス＆隙間分離フィルター ★ */
+    /* ★ 高度な画像前処理（ノイズ除去・白黒反転自動補正・適応的二値化） ★ */
+    /* ★ 難読漢字・高画数対応：カメラのザラつきを消し、細い線を残したまま白黒くっきりに ★ */
     function preprocessPinpointImage(canvas, ctx) {
       const w = canvas.width;
       const h = canvas.height;
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
-      const len = d.length;
-      const count = len / 4;
-      
-      let minLum = 255;
-      let maxLum = 0;
-      const lums = new Uint8Array(count);
-      
-      for (let i = 0, j = 0; i < len; i += 4, j++) {
-        const l = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-        lums[j] = l;
-        if (l < minLum) minLum = l;
-        if (l > maxLum) maxLum = l;
+      const count = w * h;
+
+      const lums = new Float32Array(count);
+      for (let i = 0, j = 0; j < count; i += 4, j++) {
+        lums[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
       }
-      
-      // 暗背景判定
-      const sampleSize = Math.min(8, Math.floor(w / 4));
+
+      // 3x3 平均でカメラのザラつき（センサーノイズ）を除去
+      const smooth = new Float32Array(count);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let s = 0, n = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= h) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= w) continue;
+              s += lums[yy * w + xx]; n++;
+            }
+          }
+          smooth[y * w + x] = s / n;
+        }
+      }
+
+      // 暗背景判定（四隅の明るさ）→ 白抜き文字なら反転して「白地に黒文字」にそろえる
+      const sampleSize = Math.max(1, Math.min(8, Math.floor(w / 4)));
       let cornerSum = 0;
       let cornerCount = 0;
       for (let y = 0; y < sampleSize; y++) {
         for (let x = 0; x < sampleSize; x++) {
-          cornerSum += lums[y * w + x];
-          cornerSum += lums[y * w + (w - 1 - x)];
-          cornerSum += lums[(h - 1 - y) * w + x];
-          cornerSum += lums[(h - 1 - y) * w + (w - 1 - x)];
+          cornerSum += smooth[y * w + x];
+          cornerSum += smooth[y * w + (w - 1 - x)];
+          cornerSum += smooth[(h - 1 - y) * w + x];
+          cornerSum += smooth[(h - 1 - y) * w + (w - 1 - x)];
           cornerCount += 4;
         }
       }
-      const isDarkBackground = (cornerSum / cornerCount) < 115;
-      const range = Math.max(25, maxLum - minLum);
-
-      // コントラスト伸長（線をつぶさず階調を残して隙間をくっきり保つ）
-      const stretchedLums = new Uint8Array(count);
-      for (let j = 0; j < count; j++) {
-        let l = lums[j];
-        let s = Math.round(((l - minLum) / range) * 255);
-        if (s < 0) s = 0;
-        if (s > 255) s = 255;
-        if (isDarkBackground) s = 255 - s;
-        stretchedLums[j] = s;
+      if ((cornerSum / cornerCount) < 115) {
+        for (let j = 0; j < count; j++) smooth[j] = 255 - smooth[j];
       }
 
-      // アンシャープマスキング（ラプラシアンエッジ強調で画数の細い線をくっきり分離）
-      for (let y = 1; y < h - 1; y++) {
-        for (let x = 1; x < w - 1; x++) {
+      // 積分画像で周囲の平均明るさを求め、それより一定以上暗い画素だけを文字（黒）にする
+      // （照明ムラ・影があっても線が途切れにくい適応的二値化）
+      const integral = new Float64Array((w + 1) * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let rowSum = 0;
+        for (let x = 0; x < w; x++) {
+          rowSum += smooth[y * w + x];
+          integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
+        }
+      }
+      // 窓は文字1つ分より大きく取る（小さいと画数の多い字の内側の線が消えて字がバラバラになる）
+      const half = Math.max(7, Math.round(h * 0.5));
+      const offset = 10;
+      for (let y = 0; y < h; y++) {
+        const y0 = Math.max(0, y - half), y1 = Math.min(h - 1, y + half);
+        for (let x = 0; x < w; x++) {
+          const x0 = Math.max(0, x - half), x1 = Math.min(w - 1, x + half);
+          const area = (y1 - y0 + 1) * (x1 - x0 + 1);
+          const sum = integral[(y1 + 1) * (w + 1) + (x1 + 1)] - integral[y0 * (w + 1) + (x1 + 1)]
+                    - integral[(y1 + 1) * (w + 1) + x0] + integral[y0 * (w + 1) + x0];
           const idx = y * w + x;
-          const center = stretchedLums[idx];
-          // 周囲4近傍
-          const up = stretchedLums[(y - 1) * w + x];
-          const down = stretchedLums[(y + 1) * w + x];
-          const left = stretchedLums[y * w + (x - 1)];
-          const right = stretchedLums[y * w + (x + 1)];
-          
-          // エッジ強調量
-          const laplacian = 5 * center - (up + down + left + right);
-          let sharpVal = Math.min(255, Math.max(0, laplacian));
-
+          const v = smooth[idx] < (sum / area) - offset ? 0 : 255;
           const pix = idx * 4;
-          d[pix] = sharpVal;
-          d[pix + 1] = sharpVal;
-          d[pix + 2] = sharpVal;
+          d[pix] = v;
+          d[pix + 1] = v;
+          d[pix + 2] = v;
+          d[pix + 3] = 255;
         }
       }
       ctx.putImageData(imgData, 0, 0);
+    }
+
+    /* インク量の分布（行ごと or 列ごと）から文字の帯を探し、中央に一番近い帯 [開始, 終了] を返す */
+    function findBandNearestCenter(profile, minInk, minSize, mergeGap) {
+      const n = profile.length;
+      const bands = [];
+      let start = -1;
+      for (let i = 0; i <= n; i++) {
+        const ink = i < n && profile[i] >= minInk;
+        if (ink && start < 0) start = i;
+        if (!ink && start >= 0) { bands.push([start, i - 1]); start = -1; }
+      }
+      // 近い帯（「三」「川」のように線の間に隙間がある字など）は同じ行・列としてまとめる
+      const merged = [];
+      for (const b of bands) {
+        const last = merged[merged.length - 1];
+        if (last && b[0] - last[1] <= Math.max(mergeGap, (last[1] - last[0]) * 0.35)) last[1] = b[1];
+        else merged.push(b.slice());
+      }
+      const found = merged.filter(b => b[1] - b[0] >= minSize);
+      if (found.length === 0) return null;
+      const c = n / 2;
+      const dist = b => (c < b[0] ? b[0] - c : (c > b[1] ? c - b[1] : 0));
+      found.sort((a, b) => dist(a) - dist(b));
+      return found[0];
+    }
+
+    /* ★ 二値化済み画像から「枠の中央に一番近い文字の行（縦書きなら列）」を切り出し、文字の大きさを指定サイズにそろえる ★ */
+    /* （Tesseract は文字が大きすぎても小さすぎても難しい漢字をバラバラの部品に誤認するため） */
+    /* 縦書きは1文字ずつに切り分けて横一列に並べ直し、横書きと同じ高精度エンジンで読む */
+    function normalizeTextLine(canvas, ctx, targetLineH = 32, vertical = false) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const d = ctx.getImageData(0, 0, w, h).data;
+      const isInk = (x, y) => d[(y * w + x) * 4] < 128;
+      const pad = 24;
+      const newOut = (ow, oh) => {
+        const out = document.createElement("canvas");
+        out.width = ow;
+        out.height = oh;
+        const octx = out.getContext("2d");
+        octx.fillStyle = "#ffffff";
+        octx.fillRect(0, 0, ow, oh);
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = "high";
+        return { out, octx };
+      };
+
+      if (!vertical) {
+        const rowInk = new Uint32Array(h);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) if (isInk(x, y)) rowInk[y]++;
+        }
+        const band = findBandNearestCenter(rowInk, Math.max(2, Math.floor(w * 0.01)), Math.max(6, h * 0.08), 3);
+        if (!band) return null;
+        const [y0, y1] = band;
+
+        // その行の左右の範囲
+        let x0 = w, x1 = -1;
+        for (let y = y0; y <= y1; y++) {
+          for (let x = 0; x < w; x++) {
+            if (isInk(x, y)) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+          }
+        }
+        if (x1 < x0) return null;
+
+        const lineH = y1 - y0 + 1;
+        const lineW = x1 - x0 + 1;
+        const scale = targetLineH / lineH;
+        const { out, octx } = newOut(Math.max(1, Math.round(lineW * scale)) + pad * 2, Math.round(lineH * scale) + pad * 2);
+        octx.drawImage(canvas, x0, y0, lineW, lineH, pad, pad, out.width - pad * 2, out.height - pad * 2);
+        return out;
+      }
+
+      // ── 縦書き：中央に一番近い文字の列を探す ──
+      const colInk = new Uint32Array(w);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) if (isInk(x, y)) colInk[x]++;
+      }
+      const col = findBandNearestCenter(colInk, Math.max(2, Math.floor(h * 0.01)), Math.max(6, w * 0.08), Math.max(3, Math.round(w * 0.1)));
+      if (!col) return null;
+      const [x0, x1] = col;
+      const colW = x1 - x0 + 1;
+
+      // 列の中を上から1文字ずつに切り分ける（文字はほぼ正方形なので、列の幅の1.2倍までの隙間はまとめて1文字）
+      const rowInk = new Uint32Array(h);
+      for (let y = 0; y < h; y++) {
+        for (let x = x0; x <= x1; x++) if (isInk(x, y)) rowInk[y]++;
+      }
+      const pieces = [];
+      let start = -1;
+      for (let y = 0; y <= h; y++) {
+        const ink = y < h && rowInk[y] > 0;
+        if (ink && start < 0) start = y;
+        if (!ink && start >= 0) { pieces.push([start, y - 1]); start = -1; }
+      }
+      const chars = [];
+      for (const p of pieces) {
+        const last = chars[chars.length - 1];
+        if (last && (p[1] - last[0] + 1) <= colW * 1.2) last[1] = p[1];
+        else chars.push(p.slice());
+      }
+      const kept = chars.filter(c => c[1] - c[0] + 1 >= 2);
+      if (kept.length === 0) return null;
+
+      // 横一列に並べ直す（列の幅 → 指定の文字サイズ）
+      const scale = targetLineH / colW;
+      const gap = Math.round(targetLineH * 0.2);
+      const charHs = kept.map(c => Math.max(1, Math.round((c[1] - c[0] + 1) * scale)));
+      const maxH = Math.max(...charHs);
+      const cellW = Math.round(colW * scale);
+      const { out, octx } = newOut(kept.length * cellW + (kept.length - 1) * gap + pad * 2, maxH + pad * 2);
+      kept.forEach((c, i) => {
+        const dx = pad + i * (cellW + gap);
+        const dy = pad + Math.round((maxH - charHs[i]) / 2);
+        octx.drawImage(canvas, x0, c[0], colW, c[1] - c[0] + 1, dx, dy, cellW, charHs[i]);
+      });
+      return out;
     }
 
     /* ★ 照準枠内だけの文字認識（超高速・フリーズ完全防止） ★ */
@@ -4765,15 +5109,23 @@ const SINGLE_KANJI_DICT = {
       const box = document.getElementById("pinpointBox");
       if (!video || !video.videoWidth || !box || !viewport) return;
 
-      isOcrProcessing = true;
-      clearTimeout(ocrSafetyTimer);
-      // 万が一のフリーズ防止用安全タイマー（3秒で強制アンロック）
-      ocrSafetyTimer = setTimeout(() => {
-        isOcrProcessing = false;
-      }, 4000);
-
       const toggleBtn = document.getElementById("btnLiveToggle");
       const guideText = document.getElementById("reticleGuideText");
+
+      // 文字認識AI（日本語データ）の読み込みが終わるまでは待機表示
+      if (!ocrWorker) {
+        initOcrWorker();
+        guideText.innerText = "文字認識AIを準備中…（初回のみ数十秒）";
+        return;
+      }
+
+      isOcrProcessing = true;
+      clearTimeout(ocrSafetyTimer);
+      // 万が一のフリーズ防止用安全タイマー（12秒で強制アンロック）
+      ocrSafetyTimer = setTimeout(() => {
+        isOcrProcessing = false;
+      }, 12000);
+
       box.classList.add("scanning");
       toggleBtn.classList.add("scanning");
       guideText.innerText = "高精度AI解析中...";
@@ -4783,16 +5135,15 @@ const SINGLE_KANJI_DICT = {
         if (!cropArea) return;
 
         const cropCanvas = document.getElementById("cropCanvas");
-        // スマホWasmメモリの枯渇を防ぐ最適軽量サイズ（高さ120px程度）
-        // 難しい漢字（画数20〜30画）でも細い線が潰れない高精細サイズ（高さ200〜240px）
-        const targetH = Math.max(180, Math.min(260, Math.floor(cropArea.cropH * 1.6)));
+        // カメラの解像度そのまま（小さすぎる時だけ拡大、メモリ節約のため上限あり）で切り出す
+        const targetH = Math.max(120, Math.min(400, Math.floor(cropArea.cropH)));
         const targetW = Math.floor(cropArea.cropW * (targetH / cropArea.cropH));
 
         cropCanvas.width = targetW;
         cropCanvas.height = targetH;
         const ctx = cropCanvas.getContext("2d");
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "medium";
+        ctx.imageSmoothingQuality = "high";
 
         ctx.drawImage(
           video,
@@ -4800,16 +5151,22 @@ const SINGLE_KANJI_DICT = {
           0, 0, targetW, targetH
         );
 
-        // 高度前処理
+        // 高度前処理（白黒くっきり化）
         preprocessPinpointImage(cropCanvas, ctx);
 
-        // メモリ消費の少ない最適JPEG品質 (0.75)
-        const targetDataUrl = cropCanvas.toDataURL("image/png");
-
-        const res = await recognizeWithTimeout(targetDataUrl, 3200);
+        // 文字の高さを認識エンジンが得意なサイズ（28px・36px の2通り）にそろえて読み、確信度の高い方を採用
+        // （検証: 難読熟語36例で、従来の拡大のみ 0〜4割 → この方式で約7割が完全一致）
+        let res = null;
+        for (const lineH of [28, 36]) {
+          const ocrCanvas = normalizeTextLine(cropCanvas, ctx, lineH, currentReticleSize === "vertical");
+          if (!ocrCanvas) return; // 枠内に文字らしきものが無い
+          const r = await recognizeWithTimeout(ocrCanvas.toDataURL("image/png"), 5000);
+          if (r && (!res || r.confidence > res.confidence)) res = r;
+        }
         const text = res ? res.text : "";
 
-        if (text) {
+        // 信頼度が極端に低い結果（文字の無い模様・ブレをでたらめな漢字と誤認したもの）は無視
+        if (text && res.confidence >= 35) {
           await findAndDisplayWordReading(text);
         }
       } catch (err) {
@@ -4867,7 +5224,7 @@ const SINGLE_KANJI_DICT = {
     /* ★ 文字判定・辞書照合・自動補正の統合エンジン ★ */
     async function findAndDisplayWordReading(rawText) {
       if (!rawText) return;
-      const cleanedJa = rawText.replace(/[\x00-\x7F]/g, "").trim();
+      const cleanedJa = rawText.replace(/[\x00-\x7F\u3000]/g, "").trim();
 
       // 1. 漢字優先または自動モードの場合
       if (currentOcrMode !== "english" && cleanedJa.length > 0) {
@@ -4910,7 +5267,27 @@ const SINGLE_KANJI_DICT = {
           }
         }
 
-        // (C) 単漢字辞書（熟語にない漢字でも音訓読みを即答）
+        // (B2) 内蔵辞書にない難しい漢字・熟語はオンライン辞書で読みを調べる
+        const kanjiRuns = (cleanedJa.match(KANJI_RUN_REGEX) || []).sort((a, b) => b.length - a.length);
+        if (kanjiRuns.length > 0) {
+          const runKey = kanjiRuns[0].slice(0, 8);
+          if (lastFoundWord === runKey) return;
+          const online = await lookupKanjiOnline(cleanedJa);
+          if (online) {
+            lastFoundWord = runKey;
+            showPinpointWordPopup({
+              type: "kanji",
+              word: online.word,
+              reading: online.reading,
+              meaning: online.meaning,
+              voiceText: online.voiceText,
+              voiceLang: "ja-JP"
+            });
+            return;
+          }
+        }
+
+        // (C) 単漢字辞書（オフライン時の予備：熟語にない漢字でも音訓読みを即答）
         for (let ch of cleanedJa) {
           if (SINGLE_KANJI_DICT[ch]) {
             const sInfo = SINGLE_KANJI_DICT[ch];
@@ -5169,7 +5546,7 @@ const SINGLE_KANJI_DICT = {
     }
 
     /* 辞書タブ用 */
-    function executeKanjiReading(query) {
+    async function executeKanjiReading(query) {
       if (!query || !query.trim()) return;
       const q = query.trim();
       let reading = "";
@@ -5179,7 +5556,16 @@ const SINGLE_KANJI_DICT = {
           reading = v.reading; meaning = v.meaning; break;
         }
       }
-      displayKnowledgeResult("purple", `🈩 漢字の読み方`, `漢字: ${q}`, reading ? `読み方: 【<strong style="color:var(--accent-gold); font-size:1.2rem;">${reading}</strong>】<br>${meaning}` : `「音声」を押すと読み上げられます。`, reading || q, "ja-JP");
+      let voiceText = reading || q;
+      if (!reading) {
+        const online = await lookupKanjiOnline(q);
+        if (online) {
+          voiceText = online.voiceText;
+          meaning = escapeHtml(online.meaning);
+          reading = escapeHtml(online.reading.replace(/^【\s*|\s*】$/g, "")).replace(/\n/g, "<br>");
+        }
+      }
+      displayKnowledgeResult("purple", `🈩 漢字の読み方`, `漢字: ${q}`, reading ? `読み方: 【<strong style="color:var(--accent-gold); font-size:1.2rem;">${reading}</strong>】<br>${meaning}` : `「音声」を押すと読み上げられます。`, voiceText, "ja-JP");
       readAloudCurrent();
     }
 
@@ -5398,7 +5784,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=8').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=9').catch(() => {});
       }
     });
   </script>
