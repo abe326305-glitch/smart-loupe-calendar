@@ -314,8 +314,8 @@
     }
 
     .pinpoint-reticle-box {
-      width: 220px;
-      height: 72px;
+      width: 200px;
+      height: 170px;
       position: relative;
       border: 2px dashed rgba(250, 204, 21, 0.6);
       border-radius: 10px;
@@ -1037,7 +1037,7 @@
 
         <!-- ★ ピンポイント照準枠（中央に配置、四隅マーカー付き） ★ -->
         <div class="pinpoint-reticle-container" id="pinpointContainer">
-          <div class="reticle-guide-text" id="reticleGuideText">知りたい文字を中央の枠に合わせてください</div>
+          <div class="reticle-guide-text" id="reticleGuideText">文字を枠に入れてください（縦書き・横書きOK）</div>
           <div class="pinpoint-reticle-box" id="pinpointBox">
             <div class="reticle-corner-tr"></div>
             <div class="reticle-corner-bl"></div>
@@ -4569,7 +4569,7 @@ const SINGLE_KANJI_DICT = {
         guideText.innerText = "翻訳したい英語を枠に合わせてください";
       } else {
         showToast("⚡ 自動判別モードに切替");
-        guideText.innerText = "知りたい文字を中央の枠に合わせてください";
+        guideText.innerText = "文字を枠に入れてください（縦書き・横書きOK）";
       }
       lastFoundWord = "";
     }
@@ -5057,12 +5057,38 @@ const SINGLE_KANJI_DICT = {
         return { out, octx };
       };
 
+      // 標準枠：縦書きか横書きかを自動判定（中央の行が横長なら横書き、中央の列が縦長なら縦書き）
+      if (vertical === "auto") {
+        const rowInkAll = new Uint32Array(h);
+        const colInkAll = new Uint32Array(w);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) if (isInk(x, y)) { rowInkAll[y]++; colInkAll[x]++; }
+        }
+        let ratioH = 0, ratioV = 0;
+        const row = findBandNearestCenter(rowInkAll, Math.max(2, Math.floor(w * 0.01)), Math.max(6, h * 0.05), 3);
+        if (row) {
+          const cols = new Uint32Array(w);
+          for (let y = row[0]; y <= row[1]; y++) for (let x = 0; x < w; x++) if (isInk(x, y)) cols[x]++;
+          const span = trimEdgeFragments(cols, Math.max(2, Math.round((row[1] - row[0] + 1) * 0.12)));
+          if (span) ratioH = (span[1] - span[0] + 1) / (row[1] - row[0] + 1);
+        }
+        const col = findBandNearestCenter(colInkAll, Math.max(2, Math.floor(h * 0.01)), Math.max(6, w * 0.05), Math.max(3, Math.round(w * 0.1)));
+        if (col) {
+          const rows = new Uint32Array(h);
+          for (let y = 0; y < h; y++) for (let x = col[0]; x <= col[1]; x++) if (isInk(x, y)) rows[y]++;
+          const span = trimEdgeFragments(rows, Math.max(2, Math.round((col[1] - col[0] + 1) * 0.3)));
+          if (span) ratioV = (span[1] - span[0] + 1) / (col[1] - col[0] + 1);
+        }
+        lastDetectedVertical = ratioV >= 1.4 && ratioV > ratioH;
+        return normalizeTextLine(canvas, ctx, targetLineH, lastDetectedVertical);
+      }
+
       if (!vertical) {
         const rowInk = new Uint32Array(h);
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) if (isInk(x, y)) rowInk[y]++;
         }
-        const band = findBandNearestCenter(rowInk, Math.max(2, Math.floor(w * 0.01)), Math.max(6, h * 0.08), 3);
+        const band = findBandNearestCenter(rowInk, Math.max(2, Math.floor(w * 0.01)), Math.max(6, h * 0.05), 3);
         if (!band) return null;
         const [y0, y1] = band;
 
@@ -5088,7 +5114,7 @@ const SINGLE_KANJI_DICT = {
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) if (isInk(x, y)) colInk[x]++;
       }
-      const col = findBandNearestCenter(colInk, Math.max(2, Math.floor(h * 0.01)), Math.max(6, w * 0.08), Math.max(3, Math.round(w * 0.1)));
+      const col = findBandNearestCenter(colInk, Math.max(2, Math.floor(h * 0.01)), Math.max(6, w * 0.05), Math.max(3, Math.round(w * 0.1)));
       if (!col) return null;
       const [x0, x1] = col;
       const colW = x1 - x0 + 1;
@@ -5134,6 +5160,7 @@ const SINGLE_KANJI_DICT = {
 
     const MIN_WORD_CONFIDENCE = 65;
     let lastScanRun = "";
+    let lastDetectedVertical = false;
 
     function filterConfidentText(data) {
       if (!data.words || data.words.length === 0) return (data.confidence >= 65) ? (data.text || "") : "";
@@ -5213,7 +5240,9 @@ const SINGLE_KANJI_DICT = {
         // （検証: 難読熟語36例で、従来の拡大のみ 0〜4割 → この方式で約7割が完全一致）
         let res = null;
         for (const lineH of [28, 36]) {
-          const ocrCanvas = normalizeTextLine(cropCanvas, ctx, lineH, currentReticleSize === "vertical");
+          // 標準枠は縦書き・横書きを自動判定、縦書き枠は縦書き固定、ワイド・1文字枠は横書き
+          const orientation = currentReticleSize === "vertical" ? true : (currentReticleSize === "normal" ? "auto" : false);
+          const ocrCanvas = normalizeTextLine(cropCanvas, ctx, lineH, orientation);
           if (!ocrCanvas) return; // 枠内に文字らしきものが無い
           const r = await recognizeWithTimeout(ocrCanvas.toDataURL("image/png"), 5000);
           if (r && (!res || r.confidence > res.confidence)) res = r;
@@ -5245,7 +5274,7 @@ const SINGLE_KANJI_DICT = {
         } else if (currentOcrMode === "english") {
           guideText.innerText = "翻訳したい英語を枠に合わせてください";
         } else {
-          guideText.innerText = "知りたい文字を中央の枠に合わせてください";
+          guideText.innerText = "文字を枠に入れてください（縦書き・横書きOK）";
         }
         isOcrProcessing = false;
         clearTimeout(ocrSafetyTimer);
@@ -5850,7 +5879,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=10').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=11').catch(() => {});
       }
     });
   </script>
