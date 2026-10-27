@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>スマート拡大鏡 - 漢字読み＆英語訳</title>
-  <link rel="manifest" href="./manifest.json?v=5">
+  <link rel="manifest" href="./manifest.json?v=6">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4664,6 +4664,37 @@ const SINGLE_KANJI_DICT = {
     }
 
     /* ★ 照準枠内だけの文字認識（超高精度エンジン） ★ */
+    /* ★ 永久安定化：タイムアウト安全弁付きOCR認識 ★ */
+    let ocrSafetyTimer = null;
+    let lastFoundWordTimer = null;
+
+    function recognizeWithTimeout(dataUrl, timeoutMs = 2400) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          resolve({ text: "" });
+        }, timeoutMs);
+
+        (async () => {
+          try {
+            let text = "";
+            if (ocrWorker) {
+              const res = await ocrWorker.recognize(dataUrl);
+              text = (res && res.data && res.data.text) ? res.data.text.trim() : "";
+            } else if (window.Tesseract) {
+              const res = await Tesseract.recognize(dataUrl, currentOcrMode === 'english' ? 'eng' : 'jpn+eng');
+              text = (res && res.data && res.data.text) ? res.data.text.trim() : "";
+            }
+            clearTimeout(timer);
+            resolve({ text });
+          } catch (err) {
+            clearTimeout(timer);
+            resolve({ text: "" });
+          }
+        })();
+      });
+    }
+
+    /* ★ 照準枠内だけの文字認識（超高速・フリーズ完全防止） ★ */
     async function scanPinpointTargetWord() {
       const video = document.getElementById("videoElement");
       const viewport = document.getElementById("viewport");
@@ -4671,6 +4702,12 @@ const SINGLE_KANJI_DICT = {
       if (!video || !video.videoWidth || !box || !viewport) return;
 
       isOcrProcessing = true;
+      clearTimeout(ocrSafetyTimer);
+      // 万が一のフリーズ防止用安全タイマー（3秒で強制アンロック）
+      ocrSafetyTimer = setTimeout(() => {
+        isOcrProcessing = false;
+      }, 3200);
+
       const toggleBtn = document.getElementById("btnLiveToggle");
       const guideText = document.getElementById("reticleGuideText");
       box.classList.add("scanning");
@@ -4682,15 +4719,15 @@ const SINGLE_KANJI_DICT = {
         if (!cropArea) return;
 
         const cropCanvas = document.getElementById("cropCanvas");
-        // OCRが最も認識しやすい解像度（文字高約40px相当以上）にリサイズ
-        const targetH = Math.max(160, Math.min(320, Math.floor(cropArea.cropH * 1.5)));
+        // スマホWasmメモリの枯渇を防ぐ最適軽量サイズ（高さ120px程度）
+        const targetH = Math.max(90, Math.min(160, Math.floor(cropArea.cropH * 1.1)));
         const targetW = Math.floor(cropArea.cropW * (targetH / cropArea.cropH));
 
         cropCanvas.width = targetW;
         cropCanvas.height = targetH;
         const ctx = cropCanvas.getContext("2d");
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
+        ctx.imageSmoothingQuality = "medium";
 
         ctx.drawImage(
           video,
@@ -4698,19 +4735,14 @@ const SINGLE_KANJI_DICT = {
           0, 0, targetW, targetH
         );
 
-        // 高度前処理の適用
+        // 高度前処理
         preprocessPinpointImage(cropCanvas, ctx);
 
-        const targetDataUrl = cropCanvas.toDataURL("image/jpeg", 0.90);
+        // メモリ消費の少ない最適JPEG品質 (0.75)
+        const targetDataUrl = cropCanvas.toDataURL("image/jpeg", 0.75);
 
-        let text = "";
-        if (ocrWorker) {
-          const res = await ocrWorker.recognize(targetDataUrl);
-          text = (res && res.data && res.data.text) ? res.data.text.trim() : "";
-        } else if (window.Tesseract) {
-          const res = await Tesseract.recognize(targetDataUrl, currentOcrMode === 'english' ? 'eng' : 'jpn+eng');
-          text = (res && res.data && res.data.text) ? res.data.text.trim() : "";
-        }
+        const res = await recognizeWithTimeout(targetDataUrl, 2400);
+        const text = res ? res.text : "";
 
         if (text) {
           await findAndDisplayWordReading(text);
@@ -4728,6 +4760,7 @@ const SINGLE_KANJI_DICT = {
           guideText.innerText = "知りたい文字を中央の枠に合わせてください";
         }
         isOcrProcessing = false;
+        clearTimeout(ocrSafetyTimer);
       }
     }
 
@@ -4917,11 +4950,18 @@ const SINGLE_KANJI_DICT = {
       reading.innerText = info.reading;
       meaning.innerText = info.meaning;
       popup.style.display = "flex";
+
+      // ★ 3秒後に同じ単語でも再認識できるように自動解放！
+      clearTimeout(lastFoundWordTimer);
+      lastFoundWordTimer = setTimeout(() => {
+        lastFoundWord = "";
+      }, 3000);
     }
 
     function closeWordPopup() {
       document.getElementById("wordReadingPopup").style.display = "none";
       lastFoundWord = "";
+      clearTimeout(lastFoundWordTimer);
     }
 
     function readAloudPopup() {
@@ -5271,7 +5311,7 @@ const SINGLE_KANJI_DICT = {
       loadLogs();
       updateBadge();
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=5').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=6').catch(() => {});
       }
     });
   </script>
