@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smart-loupe-v9';
+const CACHE_NAME = 'smart-loupe-v10';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
