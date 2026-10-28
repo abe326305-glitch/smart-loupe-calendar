@@ -774,6 +774,13 @@
       justify-content: center;
     }
     .modal-backdrop.active { display: flex; }
+
+    /* ★ 写真で読み取り（修正v2で追加） ★ */
+    .photo-preview-img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; }
+    .photo-status { font-size: 0.9rem; color: #e2e8f0; line-height: 1.6; margin-bottom: 12px; }
+    .photo-text-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; font-size: 1rem; line-height: 1.6; word-break: break-all; color: #f8fafc; }
+    .photo-result-box { background: rgba(56, 189, 248, 0.08); border: 1px solid #38bdf8; border-radius: 12px; padding: 14px; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .photo-btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: #f8fafc; font-weight: 700; cursor: pointer; }
     .modal-sheet {
       background: var(--card-bg);
       border-top: 2px solid var(--accent);
@@ -1094,6 +1101,11 @@
             <span class="sub-btn-label">静止</span>
           </button>
 
+          <button class="sub-action-btn" id="btnPhotoRead" onclick="openPhotoRead()">
+            <i class="fa-solid fa-book-open"></i>
+            <span class="sub-btn-label">写真で読む</span>
+          </button>
+
           <button class="shutter-btn" id="btnShutter" onclick="captureAndOpenSheet()">
             <i class="fa-solid fa-camera"></i>
           </button>
@@ -1183,6 +1195,44 @@
   </main>
 
   <!-- 撮影後モーダル -->
+  <!-- ★ 写真で読み取り（修正v2で追加）：枠の写真を撮って読み、閉じると画像を削除する ★ -->
+  <div class="modal-backdrop" id="photoReadSheet">
+    <div class="modal-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">写真で読み取り</div>
+        <button class="sheet-close" onclick="closePhotoRead()">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <div class="captured-preview-box">
+          <img id="photoReadPreview" class="photo-preview-img" alt="枠の写真">
+        </div>
+
+        <p class="photo-status" id="photoReadStatus">読み取り中です…</p>
+
+        <div class="form-group" id="photoTextGroup" style="display:none;">
+          <label class="form-label">読み取った文字</label>
+          <div class="photo-text-box" id="photoReadText"></div>
+        </div>
+
+        <div class="photo-result-box" id="photoResultBox" style="display:none;">
+          <div class="word-target-title" id="photoWord"></div>
+          <div class="reading-highlight" id="photoReading"></div>
+          <div class="word-meaning-text" id="photoMeaning"></div>
+          <button class="photo-btn" onclick="readAloudPopup()"><i class="fa-solid fa-volume-high"></i> 音声で聞く</button>
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        <div class="quick-cal-actions">
+          <button class="cal-add-btn" id="btnPhotoRetake" onclick="retakePhotoRead()">撮り直す</button>
+          <button class="cal-ics-btn" onclick="closePhotoRead()">閉じる（画像を削除）</button>
+        </div>
+        <p style="font-size:0.72rem; color:#94a3b8; margin-top:8px;">画像はこの画面を開いている間だけ保持され、閉じると削除されます。保存はされません。</p>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="editSheet">
     <div class="modal-sheet">
       <div class="sheet-header">
@@ -4417,6 +4467,16 @@ const SINGLE_KANJI_DICT = {
           maxHardwareZoom = capabilities.zoom.max || 1.0;
           document.getElementById("zoomSlider").max = Math.max(10, maxHardwareZoom);
         }
+        // ★修正v2: ピントと露出を「自動・継続」にし、写真がぼけにくくする（未対応の端末では何もしない）
+        try {
+          const adv = {};
+          if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) adv.focusMode = "continuous";
+          if (capabilities.exposureMode && capabilities.exposureMode.includes("continuous")) adv.exposureMode = "continuous";
+          if (Object.keys(adv).length > 0) {
+            await videoTrack.applyConstraints({ advanced: [adv] });
+          }
+        } catch (e) { /* 未対応の端末では無視する */ }
+
         startLiveScanningLoop();
         initOcrWorker();
       } catch (e) {
@@ -4535,7 +4595,8 @@ const SINGLE_KANJI_DICT = {
 
       liveScanTimer = setTimeout(async () => {
         const isLoupeVisible = document.getElementById("viewLoupe").classList.contains("active");
-        const isModalOpen = document.getElementById("editSheet").classList.contains("active");
+        const isModalOpen = document.getElementById("editSheet").classList.contains("active")
+          || document.getElementById("photoReadSheet").classList.contains("active");
 
         if (isLoupeVisible && !isModalOpen && !isFrozen && !isOcrProcessing) {
           await scanPinpointTargetWord();
@@ -5531,6 +5592,256 @@ const SINGLE_KANJI_DICT = {
       u.lang = popupVoiceLang || "ja-JP";
       u.rate = 0.90;
       window.speechSynthesis.speak(u);
+    }
+
+    /* ============================================================
+       ★ 写真で読み取り（修正v2で追加） ★
+       かざし続ける方式は誤読や遅さが出やすいため、ボタンを押した瞬間の
+       枠内の写真を1枚撮り、その画像をじっくり読み取る方式を追加した。
+       画像はメモリ上だけに保持し、閉じる・撮り直す操作で必ず削除する。
+       画像データが外部へ送信されることはない（辞書検索は読み取った
+       「文字」だけを使う、従来と同じ仕組み）。
+       ============================================================ */
+
+    /* 縦書き専用Worker（縦書き枠の写真読み取りでのみ使う） */
+    let vertWorker = null;
+    let isVertWorkerInitializing = false;
+    async function initVertWorker() {
+      if (!window.Tesseract || vertWorker || isVertWorkerInitializing) return;
+      isVertWorkerInitializing = true;
+      try {
+        const w = await Tesseract.createWorker(['jpn', 'jpn_vert'], 1, { logger: m => {} });
+        const vertPsm = (Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK_VERT_TEXT) || '5';
+        await w.setParameters({ tessedit_pageseg_mode: vertPsm });
+        vertWorker = w;
+      } catch (e) {
+        console.warn("Vertical worker failed:", e);
+      } finally {
+        isVertWorkerInitializing = false;
+      }
+    }
+
+    async function recognizeVerticalWithTimeout(dataUrl, timeoutMs) {
+      if (!vertWorker) {
+        initVertWorker();
+        return null;
+      }
+      let timer = null;
+      const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); });
+      try {
+        const res = await Promise.race([vertWorker.recognize(dataUrl), timeout]);
+        return (res && res.data) ? res.data : null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function makeVerticalOcrImage(srcCanvas) {
+      const pad = 24;
+      const out = document.createElement("canvas");
+      out.width = srcCanvas.width + pad * 2;
+      out.height = srcCanvas.height + pad * 2;
+      const octx = out.getContext("2d");
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, out.width, out.height);
+      octx.drawImage(srcCanvas, pad, pad);
+      return out;
+    }
+
+    /* 写真で読み取りの状態（画像はここにだけ保持し、閉じると消す） */
+    let photoRunToken = 0;
+    let photoCanvas = null;
+    let photoImageDataUrl = null;
+
+    /* 枠の範囲だけを、カメラ本来の解像度で切り出す */
+    function grabCropCanvasOnce() {
+      const video = document.getElementById("videoElement");
+      const box = document.getElementById("pinpointBox");
+      const viewport = document.getElementById("viewport");
+      if (!video || !video.videoWidth || !box || !viewport) return null;
+      const area = getPinpointCropArea(video, box, viewport);
+      if (!area) return null;
+      const src = isFrozen ? document.getElementById("freezeCanvas") : video;
+      const cw = Math.round(area.cropW), ch = Math.round(area.cropH);
+      const maxSide = 1600;
+      let scale = 1;
+      if (Math.max(cw, ch) > maxSide) scale = maxSide / Math.max(cw, ch);
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(cw * scale));
+      c.height = Math.max(1, Math.round(ch * scale));
+      const cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = true;
+      cx.imageSmoothingQuality = "high";
+      cx.drawImage(src, area.cropX, area.cropY, area.cropW, area.cropH, 0, 0, c.width, c.height);
+      return c;
+    }
+
+    /* 画像のシャープさ（文字の輪郭の強さ）の目安を数値化する */
+    function sharpnessScore(canvas) {
+      const maxW = 200;
+      const sc = Math.min(1, maxW / canvas.width);
+      const w = Math.max(2, Math.round(canvas.width * sc));
+      const h = Math.max(2, Math.round(canvas.height * sc));
+      const t = document.createElement("canvas");
+      t.width = w; t.height = h;
+      const tx = t.getContext("2d");
+      tx.drawImage(canvas, 0, 0, w, h);
+      const d = tx.getImageData(0, 0, w, h).data;
+      const gray = new Float32Array(w * h);
+      for (let i = 0, j = 0; j < w * h; i += 4, j++) gray[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      let sum = 0;
+      for (let y = 0; y < h; y++) for (let x = 1; x < w; x++) sum += Math.abs(gray[y * w + x] - gray[y * w + x - 1]);
+      for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) sum += Math.abs(gray[y * w + x] - gray[(y - 1) * w + x]);
+      return sum;
+    }
+
+    /* 3枚撮って一番くっきりした1枚を選ぶ（静止中は1枚だけ） */
+    async function captureBestCropCanvas() {
+      if (isFrozen) return grabCropCanvasOnce();
+      let best = null, bestScore = -1;
+      for (let i = 0; i < 3; i++) {
+        const c = grabCropCanvasOnce();
+        if (c) {
+          const sc = sharpnessScore(c);
+          if (sc > bestScore) { bestScore = sc; best = c; }
+        }
+        if (i < 2) await new Promise(r => setTimeout(r, 130));
+      }
+      return best;
+    }
+
+    async function openPhotoRead() {
+      const video = document.getElementById("videoElement");
+      if (!video || !video.videoWidth) {
+        showToast("カメラの準備ができていません");
+        return;
+      }
+      const cont = document.getElementById("pinpointContainer");
+      if (cont && cont.style.display === "none") {
+        showToast("まず「かざすだけ」をONにして枠を表示してください");
+        return;
+      }
+      const token = ++photoRunToken;
+      deletePhotoImage();
+      const status = document.getElementById("photoReadStatus");
+      status.innerText = "写真を撮っています…";
+      document.getElementById("photoTextGroup").style.display = "none";
+      document.getElementById("photoResultBox").style.display = "none";
+      document.getElementById("photoReadSheet").classList.add("active");
+
+      const crop = await captureBestCropCanvas();
+      if (token !== photoRunToken) return; // 途中で閉じられた
+      if (!crop) {
+        status.innerText = "写真を撮れませんでした。もう一度お試しください。";
+        return;
+      }
+      photoCanvas = crop;
+      photoImageDataUrl = crop.toDataURL("image/png");
+      document.getElementById("photoReadPreview").src = photoImageDataUrl;
+      runPhotoOcr(token);
+    }
+
+    async function runPhotoOcr(token) {
+      const status = document.getElementById("photoReadStatus");
+      const retakeBtn = document.getElementById("btnPhotoRetake");
+      try {
+        if (!ocrWorker) {
+          initOcrWorker();
+          status.innerText = "文字認識AIを準備中です。少し待ってから「撮り直す」を押してください。";
+          return;
+        }
+        retakeBtn.disabled = true;
+        status.innerText = "読み取り中です…（数秒かかることがあります）";
+
+        // 前処理はコピー側で行い、元の写真（プレビュー）はそのまま残す
+        const work = document.createElement("canvas");
+        work.width = photoCanvas.width;
+        work.height = photoCanvas.height;
+        const wctx = work.getContext("2d");
+        wctx.drawImage(photoCanvas, 0, 0);
+        preprocessPinpointImage(work, wctx);
+
+        let res = null;
+        for (const lineH of [28, 36]) {
+          const orientation = currentReticleSize === "vertical" ? true : (currentReticleSize === "normal" ? "auto" : false);
+          const oc = normalizeTextLine(work, wctx, lineH, orientation);
+          if (!oc) continue;
+          const r = await recognizeWithTimeout(oc.toDataURL("image/png"), 8000);
+          if (token !== photoRunToken) return;
+          if (r && (!res || r.confidence > res.confidence)) res = r;
+        }
+
+        // 縦書き枠を選んでいるときだけ、縦書き専用データでも読む
+        if (currentReticleSize === "vertical" && currentOcrMode !== "english") {
+          const vImg = makeVerticalOcrImage(work);
+          const vr = await recognizeVerticalWithTimeout(vImg.toDataURL("image/png"), 8000);
+          if (token !== photoRunToken) return;
+          if (vr && (!res || vr.confidence > res.confidence)) res = vr;
+        }
+
+        const text = res ? filterConfidentText(res) : "";
+        if (!text) {
+          status.innerText = "読み取れませんでした。明るい場所で、文字が枠いっぱいに大きく映るように近づけて、「撮り直す」をお試しください。";
+          return;
+        }
+        document.getElementById("photoReadText").innerText = text;
+        document.getElementById("photoTextGroup").style.display = "block";
+        const matched = await displayPhotoResult(text, token);
+        if (token !== photoRunToken) return;
+        status.innerText = matched
+          ? "読み取りました。"
+          : "読み取りました。辞書に合う言葉は見つかりませんでしたが、読み取った文字は上の通りです。";
+      } catch (e) {
+        if (token === photoRunToken) {
+          status.innerText = "読み取りでエラーが起きました。「撮り直す」をお試しください。";
+        }
+      } finally {
+        if (token === photoRunToken && retakeBtn) retakeBtn.disabled = false;
+      }
+    }
+
+    /* 辞書照合の結果を、写真の画面の中に表示する（既存の照合の仕組みをそのまま使う） */
+    async function displayPhotoResult(text, token) {
+      lastPopupInfo = null;
+      try { await findAndDisplayWordReading(text); } catch (e) {}
+      if (token !== photoRunToken) return false;
+      const popup = document.getElementById("wordReadingPopup");
+      if (popup) popup.style.display = "none"; // カメラ画面側のポップアップは隠す
+      const info = lastPopupInfo;
+      if (!info) return false;
+      document.getElementById("photoWord").innerText = info.word;
+      document.getElementById("photoReading").innerText = info.reading;
+      document.getElementById("photoMeaning").innerText = info.meaning;
+      document.getElementById("photoResultBox").style.display = "flex";
+      return true;
+    }
+
+    /* 保持している画像を完全に削除する */
+    function deletePhotoImage() {
+      photoImageDataUrl = null;
+      if (photoCanvas) {
+        photoCanvas.width = 0;
+        photoCanvas.height = 0;
+        photoCanvas = null;
+      }
+      const img = document.getElementById("photoReadPreview");
+      if (img) {
+        img.removeAttribute("src");
+        img.src = "";
+      }
+    }
+
+    function closePhotoRead() {
+      photoRunToken++; // 実行中の読み取り結果は破棄する
+      deletePhotoImage();
+      document.getElementById("photoReadSheet").classList.remove("active");
+      showToast("写真を削除しました");
+    }
+
+    function retakePhotoRead() {
+      photoRunToken++;
+      deletePhotoImage();
+      openPhotoRead();
     }
 
     /* 撮影 */
